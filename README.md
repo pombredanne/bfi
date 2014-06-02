@@ -1,6 +1,6 @@
 # Bloom Filter Index
 
-**Alpha code - do not use in production**
+**Pre-alpha code - don't even bother checking out yet**
 
 ## Overview
 
@@ -33,7 +33,7 @@ Note that the BSDDB timings are run via python so you can probably knock a littl
 * No range queries - though user defined ranges can be used e.g ``AgeRange:18-30``
 * Probabilistic nature of bloom filters requires validation of results.
 
-# TODO
+## TODO
 
 * Implement mmap for lookup - should give significant boost
 * Get someone who can actually write C to go over the code.
