@@ -4,10 +4,10 @@
 
 ## Overview
 
-An experimental new index designed for document-based databases using bloom filters.  Allows for fast full table scans across **ALL** fields without needing
-to deserialize.
+An experimental new index designed for document-based databases using bloom filters.  Allows for fast full table scans without needing to deserialize the
+documents.
 
-# Features
+## Features
 
 * Indexing of **ALL** record fields, including sub-elements.
 * Linear time regardless of number of fields searched for.
@@ -15,7 +15,7 @@ to deserialize.
 * Compact structure compared to multiple btrees.
 * Low CPU usage.
 
-# Performance
+## Performance
 
 Early days but showing promise.  On a dataset of 470,000 items with 10 fields indexed. 
 
@@ -28,7 +28,7 @@ Early days but showing promise.  On a dataset of 470,000 items with 10 fields in
 
 Note that the BSDDB timings are run via python so you can probably knock a little off the lookup times for that.
 
-# Limitations
+## Limitations
 
 * No range queries - though user defined ranges can be used e.g ``AgeRange:18-30``
 * Probabilistic nature of bloom filters requires validation of results.
