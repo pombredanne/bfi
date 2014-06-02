@@ -1,6 +1,6 @@
 # Bloom Filter Index
 
-** Alpha code - do not use in production **
+**Alpha code - do not use in production**
 
 ## Overview
 
@@ -30,7 +30,7 @@ Note that the BSDDB timings are run via python so you can probably knock a littl
 
 # Limitations
 
-* No range queries - though user defined ranges can be used e.g AgeRange:18-30
+* No range queries - though user defined ranges can be used e.g ``AgeRange:18-30``
 * Probabilistic nature of bloom filters requires validation of results.
 
 # TODO
