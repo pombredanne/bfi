@@ -2,7 +2,6 @@
 
 #define BLOOM_SIZE 128
 #define BFI_MAGIC 0x053e // 1342
-#define BFI_VERSION 0x02
 #define BFI_HEADER 8
 #define BFI_PAGE_SIZE 1000
 

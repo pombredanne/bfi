@@ -1,6 +1,5 @@
 
-bfi: bfi_tools.c bfi.c murmur.c
-	gcc $^ -o $@
+all: bfi_v1 bfi_v2
 
-bfi1: bfi_tools.c bfi_v1.c murmur.c
+bfi_%: bfi_tools.c bfi_%.c murmur.c
 	gcc $^ -o $@

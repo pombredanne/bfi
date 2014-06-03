@@ -5,6 +5,8 @@
 #include "murmur.h"
 #include "bfi.h"
 
+#define BFI_VERSION 0x02
+
 /**
  * A super-simple bloom filter implementation optomised for alignment and efficiency
  * 
@@ -76,11 +78,21 @@ bfi* bfi_open(char *filename) {
     
     fseek(result->fp, 0, 0);
     i = fread(result, 1, BFI_HEADER, result->fp);
-    if(i < BFI_HEADER || result->magic_number != BFI_MAGIC) {
+    if(i == 0) {
         printf("Creating new file (only loaded %d bytes)\n", i);
         result->magic_number = BFI_MAGIC;
         result->version = BFI_VERSION;
         result->records = 0;
+    }
+    
+    if(result->magic_number != BFI_MAGIC) {
+        fprintf(stderr, "Bad magic number: 0x%0x\n", result->magic_number);
+        return NULL;
+    }
+    
+    if(result->version != BFI_VERSION) {
+        fprintf(stderr, "Incorrect version - expected %d, got %d\n", BFI_VERSION, result->version);
+        return NULL;
     }
     
     result->current_page = -1;
