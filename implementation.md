@@ -49,7 +49,7 @@ To run a query you create another filter with only the fields you are interested
     country:UK
     likes:yellow
 
-Then quickly scan the data doing a simple bitwise AND of the filters and record the matches.  Note that a match only indicates a good probability (>0.999) that the record fulfills the criteria, it must be checked before returning to client.
+Then quickly scan the data doing a simple bitwise AND of the filters and record the matches.  Note that a match only indicates a good probability (>0.999) that the record fulfills the criteria, **it must be checked before returning to client**.
 
 The main limitation of this technique is that it only supports **exact** matches and can't do ranges.  We can migate this slightly by taking advantage of the fact that we can store many more items, so we could store the additional values:
 
@@ -100,6 +100,6 @@ We still have to process the entire datastructure but at least 124 of the 128 ro
 
 Inplace updating and deletion of items is straight forward as well as insertion with no need to rebalance.
 
-# Implementation
+## Implementation
 
 This is currently **VERY BAD C** - I need someone to help me clean it up!
