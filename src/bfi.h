@@ -11,20 +11,19 @@ typedef struct {
     uint8_t     version;
     uint8_t     unused;
     uint32_t    records;
-    FILE        *fp;
+    FILE        * fp;
     int32_t     current_page;
     uint32_t    pks[BFI_PAGE_SIZE];
     char        page[BLOOM_SIZE * BFI_PAGE_SIZE];
     char        page_dirty;
 } bfi;
 
-char*   bfi_generate(char *input[], int items);
-int     bfi_contains(char *haystack, char *needle, int len);
+char*   bfi_generate(char * input[], int items);
+int     bfi_contains(char * haystack, char * needle, int len);
 
-bfi*    bfi_open(char *filename);
-void    bfi_close(bfi *index);
-void    bfi_sync(bfi *index);
+bfi*    bfi_open(char * filename);
+void    bfi_close(bfi * index);
+void    bfi_sync(bfi * index);
 
-int     bfi_index(bfi *index, int pk, char *input[], int items);
-int     bfi_index_stdin(bfi *index, int row);
-void    bf_lookup(bfi *index, char *input[], int items);
+int     bfi_index(bfi * index, int pk, char * input[], int items);
+int     bf_lookup(bfi * index, char * input[], int items, uint32_t ** ptr);

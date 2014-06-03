@@ -18,11 +18,11 @@
  * 
  * The approximate target was 0.0001 so this holds till over 30 fields are indexed.
  */
-char* bfi_generate(char *input[], int items) {
+char * bfi_generate(char * input[], int items) {
     // use 128 bytes and 12 sectors
     uint32_t hash;
     uint32_t i, offset, pos;
-    char *bloom;
+    char * bloom;
     
     bloom = malloc(BLOOM_SIZE);
     memset(bloom, 0, BLOOM_SIZE);
@@ -46,7 +46,7 @@ char* bfi_generate(char *input[], int items) {
 /**
  * Checks whether one bloom filter is within another
  */
-int bfi_contains(char *haystack, char *needle, int len) {
+int bfi_contains(char * haystack, char * needle, int len) {
     int i;
     
     for(i=0; i<len; i++) {
@@ -56,7 +56,7 @@ int bfi_contains(char *haystack, char *needle, int len) {
     return 1;
 }
 
-void bfi_dump(bfi *index, int full) {
+void bfi_dump(bfi * index, int full) {
     if(full) {
         printf("--\nMagic number: %d\n", index->magic_number);
         printf("Version: %d\n", index->version);
@@ -66,8 +66,8 @@ void bfi_dump(bfi *index, int full) {
     printf("%08lx Current page: %d, dirty: %d\n", (long)index, index->current_page, index->page_dirty);
 }
 
-bfi* bfi_open(char *filename) {
-    bfi *result;
+bfi * bfi_open(char * filename) {
+    bfi * result;
     int i;
     
     result = malloc(sizeof(bfi));
@@ -100,7 +100,7 @@ bfi* bfi_open(char *filename) {
     return result;
 }
 
-void bfi_close(bfi *index) {
+void bfi_close(bfi * index) {
     
     //printf("Writing header\n");
     fseek(index->fp, 0, SEEK_SET);
@@ -110,8 +110,8 @@ void bfi_close(bfi *index) {
     free(index);
 }
 
-int bfi_index(bfi *index, int pk, char *input[], int items) {
-    char *data;
+int bfi_index(bfi * index, int pk, char * input[], int items) {
+    char * data;
     
     data = bfi_generate(input, items);
     
@@ -122,47 +122,13 @@ int bfi_index(bfi *index, int pk, char *input[], int items) {
     index->records++;
 }
 
-int bfi_index_stdin(bfi *index, int row) {
-    char *values[100];
-    size_t nbytes=10;
-    int c, i, j, pk;
+int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
+    char * data, * mask;
+    int pk, buf_size, i, count;
+    uint32_t *result;
     
-    char *line = malloc(100);
-    
-    for(;;) {
-        c = getline(&line, &nbytes, stdin);
-        if(c == -1) break;
-        line[c-1] = 0;
-        //printf("LINE: %s (%d bytes)\n", line, c);
-        
-        // 
-        if(sscanf(line, "%d", &pk) < 1) {
-            fprintf(stderr, "Failed to parse primary key for row %d\n", row);
-            return row;
-        }
-        //printf("PK: %d\n", pk);
-        
-        // rather hacky conversion of string to array
-        i = 0;
-        values[i++] = line;
-        for(j=0; j<c; j++) {
-            if(line[j] == ' ') {
-                line[j] = 0;
-                values[i++] = &line[j+1];
-            }
-        }
-        
-        bfi_index(index, pk, values, i);
-        
-        row++;
-    }
-    
-    return row;
-}
-
-void bfi_lookup(bfi *index, char *input[], int items) {
-    char *data, *mask;
-    int pk;
+    count = 0;
+    result = NULL;
     
     mask = bfi_generate(input, items);
     fseek(index->fp, BFI_HEADER, SEEK_SET);
@@ -173,12 +139,25 @@ void bfi_lookup(bfi *index, char *input[], int items) {
         fread(&pk, sizeof(uint32_t), 1, index->fp);
         fread(data, 1, BLOOM_SIZE, index->fp);
         
-        if(bfi_contains(data, mask, BLOOM_SIZE)) printf("%d ", pk);
+        if(bfi_contains(data, mask, BLOOM_SIZE)) {
+            if(count % 100 == 0) {
+                buf_size = ((count / 100) + 1) * 100;
+                result = realloc(result, sizeof(uint32_t) * buf_size);
+            }
+            //printf("%d ", pk);
+            result[count++] = pk;
+        }
         
     }
     
     free(data);
     
-    printf("\n");
+    // shrink it back to actual size
+    if(count) {
+        result = realloc(result, sizeof(uint32_t) * count);
+    }
     
+    *ptr = result;
+    
+    return count;
 }

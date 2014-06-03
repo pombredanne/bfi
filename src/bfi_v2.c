@@ -18,11 +18,11 @@
  * 
  * The approximate target was 0.0001 so this holds till over 30 fields are indexed.
  */
-char* bfi_generate(char *input[], int items) {
+char * bfi_generate(char * input[], int items) {
     // use 128 bytes and 12 sectors
     uint32_t hash;
     uint32_t i, offset, pos;
-    char *bloom;
+    char * bloom;
     
     bloom = malloc(BLOOM_SIZE);
     memset(bloom, 0, BLOOM_SIZE);
@@ -46,7 +46,7 @@ char* bfi_generate(char *input[], int items) {
 /**
  * Checks whether one bloom filter is within another
  */
-int bfi_contains(char *haystack, char *needle, int len) {
+int bfi_contains(char * haystack, char * needle, int len) {
     int i;
     
     for(i=0; i<len; i++) {
@@ -56,7 +56,7 @@ int bfi_contains(char *haystack, char *needle, int len) {
     return 1;
 }
 
-void bfi_dump(bfi *index, int full) {
+void bfi_dump(bfi * index, int full) {
     if(full) {
         printf("--\nMagic number: %d\n", index->magic_number);
         printf("Version: %d\n", index->version);
@@ -66,8 +66,8 @@ void bfi_dump(bfi *index, int full) {
     printf("%08lx Current page: %d, dirty: %d\n", (long)index, index->current_page, index->page_dirty);
 }
 
-bfi* bfi_open(char *filename) {
-    bfi *result;
+bfi * bfi_open(char * filename) {
+    bfi * result;
     int i;
     
     result = malloc(sizeof(bfi));
@@ -103,7 +103,7 @@ bfi* bfi_open(char *filename) {
     return result;
 }
 
-void bfi_sync(bfi *index) {
+void bfi_sync(bfi * index) {
     int size;
     
     if(!index->page_dirty) return;
@@ -119,7 +119,7 @@ void bfi_sync(bfi *index) {
     index->page_dirty = 0;
 }
 
-void bfi_close(bfi *index) {
+void bfi_close(bfi * index) {
     bfi_sync(index);
     
     //printf("Writing header\n");
@@ -130,7 +130,7 @@ void bfi_close(bfi *index) {
     free(index);
 }
 
-void bfi_load_page(bfi *index, int page) {
+void bfi_load_page(bfi * index, int page) {
     int size;
     
     if(page == index->current_page)  return;
@@ -149,9 +149,9 @@ void bfi_load_page(bfi *index, int page) {
     //bfi_dump(index, 0);
 }
 
-int bfi_index(bfi *index, int pk, char *input[], int items) {
+int bfi_index(bfi * index, int pk, char * input[], int items) {
     int page, offset, i;
-    char *p, *data;
+    char * p, * data;
     
     page = index->records / BFI_PAGE_SIZE;
     offset = index->records % BFI_PAGE_SIZE;
@@ -177,48 +177,14 @@ int bfi_index(bfi *index, int pk, char *input[], int items) {
     index->records++;
 }
 
-int bfi_index_stdin(bfi *index, int row) {
-    char *values[100];
-    size_t nbytes=10;
-    int c, i, j, pk;
+int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
+    int page, total_pages, i, j, buf_size, count;
+    char * data, matches[BFI_PAGE_SIZE];
+    char * p_data, * p_index;
+    uint32_t * result;
     
-    char *line = malloc(100);
-    
-    for(;;) {
-        c = getline(&line, &nbytes, stdin);
-        if(c == -1) break;
-        line[c-1] = 0;
-        //printf("LINE: %s (%d bytes)\n", line, c);
-        
-        // 
-        if(sscanf(line, "%d", &pk) < 1) {
-            fprintf(stderr, "Failed to parse primary key for row %d\n", row);
-            return row;
-        }
-        //printf("PK: %d\n", pk);
-        
-        // rather hacky conversion of string to array
-        i = 0;
-        values[i++] = line;
-        for(j=0; j<c; j++) {
-            if(line[j] == ' ') {
-                line[j] = 0;
-                values[i++] = &line[j+1];
-            }
-        }
-        
-        bfi_index(index, pk, values, i);
-        
-        row++;
-    }
-    
-    return row;
-}
-
-void bfi_lookup(bfi *index, char *input[], int items) {
-    int page, total_pages, i, j;
-    char *data, matches[BFI_PAGE_SIZE];
-    char *p_data, *p_index;
+    count = 0;
+    result = NULL;
     
     total_pages = index->records / BFI_PAGE_SIZE;
     
@@ -257,10 +223,24 @@ void bfi_lookup(bfi *index, char *input[], int items) {
         
         // output the result
         for(i=0; i<BFI_PAGE_SIZE; i++) {
-            if(matches[i]) printf("%d ", index->pks[i]);
+            if(matches[i]) {
+                if(count % 100 == 0) {
+                    buf_size = ((count / 100) + 1) * 100;
+                    result = realloc(result, sizeof(uint32_t) * buf_size);
+                }
+                result[count++] = index->pks[i];
+                //printf("%d ", index->pks[i]);
+            }
         }
         
     }
-    printf("\n");
     
+    // shrink it back to actual size
+    if(count) {
+        result = realloc(result, sizeof(uint32_t) * count);
+    }
+    
+    *ptr = result;
+    
+    return count;
 }
