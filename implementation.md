@@ -2,7 +2,7 @@
 
 ## Why
 
-RMDBs are incredibly efficient - in some ways too efficient!  People have got used to being able to run complex queries against unindexed data and have the results back almost instantly.  Having your data nicely aligned means that you can scan a huge table efficiently - particularly now we have fast solid state disks and tonnes of memory.
+Relational databases are incredibly efficient - in some ways too efficient!  People have got used to being able to run complex queries against unindexed data and have the results back almost instantly.  Having your data nicely aligned means that you can scan a huge table efficiently - particularly now we have fast solid state disks and tonnes of memory.
 
 NoSQL has come to the party and for all its benefits (and there are many), full table scans are not one of them.  The data is stored in a serialized (and often compressed) form so every record must be extracted before being checked which is CPU intensive and slow.
 
@@ -30,32 +30,34 @@ Given the following object:
 
 we create a small bloom filter with a capacity of around 30 elements and feed it all the fields concatinated with their values:
 
-* first_name:Eric
-* last_name:Wimp
-* profession:Superhero
-* age:34
-* ...
-* likes:bananas
-* likes:crows
-* likes:yellow
-* dislikes:scotsmen
-* dislikes:fat cats
+    first_name:Eric
+    last_name:Wimp
+    profession:Superhero
+    age:34
+    ...
+    likes:bananas
+    likes:crows
+    likes:yellow
+    dislikes:scotsmen
+    dislikes:fat cats
 
-We then store the resulting bloom filter with the pk.  To run a query you create another filter with only the fields you are interested in
+We then store the resulting bloom filter with the pk.
 
-* profession:Superhero
-* country:UK
-* likes:yellow
+To run a query you create another filter with only the fields you are interested in
+
+    profession:Superhero
+    country:UK
+    likes:yellow
 
 Then quickly scan the data doing a simple bitwise AND of the filters and record the matches.  Note that a match only indicates a good probability (>0.999) that the record fulfills the criteria, it must be checked before returning to client.
 
 The main limitation of this technique is that it only supports **exact** matches and can't do ranges.  We can migate this slightly by taking advantage of the fact that we can store many more items, so we could store the additional values:
 
-* first_name:E*
-* first_name:Er*
-* last_name:W*
-* last_name:Wi*
-* age:30-50
+    first_name:E*
+    first_name:Er*
+    last_name:W*
+    last_name:Wi*
+    age:30-39
 
 which would allow us to do one or two letter searches for the names and use predefined age ranges.
 
@@ -82,11 +84,11 @@ The indexes are designed to be saturated - ie as large a number of bits set as p
 
 When we do a query though the filter is sparse - for a single criteria only 4 bits of 1024 will be set.
 
-We can use this to skip large chunks of the index.  The index data is stored in pages with the filter stored in column order.
+We can use this to skip large chunks of the index.  The index data is stored in pages with the 128 filter bytes stored in column order.
 
     Primary keys:   pk1   pk2   pk3   pk4
                     -----------------------
-                    f1[0] f2[0] f3[0] f4[0]
+    Filters:        f1[0] f2[0] f3[0] f4[0]
                     f1[1] f2[1] f3[1] f4[1]
                     f1[2] f2[2] f3[2] f4[2]
                     ...
@@ -94,7 +96,7 @@ We can use this to skip large chunks of the index.  The index data is stored in 
 
 Given that the first x bytes of the query filter are 0, we can skip rows 0-x. When the query byte is non zero we just check that row and discount any filters that dont AND with the query byte.
 
-We still have to process the entire datastructure but 1020 of the rows can be skipped without checking. As the number of criteria increases as does the number of rows that need to be checked per page but even at 5 criteria we still only need to check 20 of 1024.
+We still have to process the entire datastructure but at least 124 of the 128 rows can be skipped without checking. As the number of criteria increases as does the number of rows that need to be checked per page, up to a worst case similar to version 1.
 
 Inplace updating and deletion of items is straight forward as well as insertion with no need to rebalance.
 
