@@ -74,7 +74,7 @@ These values seem ideal for around 20 fields which is typical for a document.
 
 V1 stored the data in a very simple [pk1, f1], [pk2, f2] ... file format which worked efficiently and gave sub 100ms lookups but involved checking every single bloom filter.
 
-I investigated bloofi as an option but the added complexity and storage requirements made it not an option - unless the data is efficiently sorted to keep similar filters in the same sections of the tree you end up following many paths before discounting them.
+I investigated [bloofi](http://dl.acm.org/citation.cfm?doid=2501928.2501931) as an option but the added complexity and storage requirements made it not an option - unless the data is efficiently sorted to keep similar filters in the same sections of the tree you end up following many paths before discounting them.
 
 We can however use the properties of the filters to get about a 8x increase in query performance. 
 
@@ -100,4 +100,4 @@ Inplace updating and deletion of items is straight forward as well as insertion 
 
 # Implementation
 
-This is currently **VERY BAD C** - I need someone to help me!
+This is currently **VERY BAD C** - I need someone to help me clean it up!

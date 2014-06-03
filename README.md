@@ -7,6 +7,8 @@
 An experimental new index designed for document-based databases using bloom filters.  Allows for fast full table scans without needing to deserialize the
 documents.
 
+See [implementation](implementation.md) details.
+
 ## Features
 
 * Indexing of **ALL** record fields, including sub-elements.
