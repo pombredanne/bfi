@@ -24,6 +24,8 @@ char * bfi_generate(char * input[], int items) {
     uint32_t i, offset, pos;
     char * bloom;
     
+    //for(i=0; i<items; i++) printf("GENERATE: %s\n", input[i]);
+    
     bloom = malloc(BLOOM_SIZE);
     memset(bloom, 0, BLOOM_SIZE);
  
@@ -103,10 +105,10 @@ bfi * bfi_open(char * filename) {
     return result;
 }
 
-void bfi_sync(bfi * index) {
+int bfi_sync(bfi * index) {
     int size;
     
-    if(!index->page_dirty) return;
+    if(!index->page_dirty) return index->records;
     
     //printf("Syncing page %d\n", index->current_page);
     size = (sizeof(uint32_t) + BLOOM_SIZE) * BFI_PAGE_SIZE;
@@ -117,6 +119,8 @@ void bfi_sync(bfi * index) {
     
     index->current_page = -1;
     index->page_dirty = 0;
+    
+    return index->records;
 }
 
 void bfi_close(bfi * index) {
@@ -131,7 +135,7 @@ void bfi_close(bfi * index) {
 }
 
 void bfi_load_page(bfi * index, int page) {
-    int size;
+    int size, c;
     
     if(page == index->current_page)  return;
     bfi_sync(index);
@@ -140,8 +144,18 @@ void bfi_load_page(bfi * index, int page) {
     
     fseek(index->fp, BFI_HEADER + (size * page), SEEK_SET);
     //printf("Loading page %d from 0x%04lx\n", page, ftell(index->fp));
-    fread(index->pks, sizeof(uint32_t), BFI_PAGE_SIZE, index->fp);
-    fread(index->page, BFI_PAGE_SIZE, BLOOM_SIZE, index->fp);
+    c = fread(index->pks, sizeof(uint32_t), BFI_PAGE_SIZE, index->fp);
+    if(c < BFI_PAGE_SIZE) {
+        // primary keys are always all or nothing
+        memset(index->pks, 0, sizeof(uint32_t) * BFI_PAGE_SIZE);
+    }
+    c = fread(index->page, 1, BFI_PAGE_SIZE * BLOOM_SIZE, index->fp);
+    if( c < BFI_PAGE_SIZE * BLOOM_SIZE) {
+        memset(index->page, 0, BFI_PAGE_SIZE * BLOOM_SIZE);
+    }
+    
+    // leave the file pointer at the end of the page so a full page is writen
+    fseek(index->fp, BFI_HEADER + (size * (page + 1)), SEEK_SET);
     
     index->current_page = page;
     
@@ -175,6 +189,8 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     
     index->page_dirty = 1;
     index->records++;
+    
+    return 0;
 }
 
 int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
@@ -186,7 +202,7 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
     count = 0;
     result = NULL;
     
-    total_pages = index->records / BFI_PAGE_SIZE;
+    total_pages = (index->records / BFI_PAGE_SIZE) + 1;
     
     data = bfi_generate(input, items);
     

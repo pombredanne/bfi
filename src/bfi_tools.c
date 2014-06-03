@@ -42,7 +42,7 @@ int index_stdin(bfi *index, int row) {
 
 int usage() {
     fprintf(stderr, "Usage: bfi index <file> <pk> <value> [<value> ...]\n");
-    fprintf(stderr, "       bfi index <file> (read from stdin)");
+    fprintf(stderr, "       bfi index <file> (read from stdin)\n");
     fprintf(stderr, "       bfi lookup <file> <value> [<value> ...]\n");
     return -255;
 }
@@ -53,22 +53,22 @@ int main(int argc, char *argv[]) {
     
     if(argc < 3) return usage();
     
-    index = bfi_open(argv[1]);
+    index = bfi_open(argv[2]);
     if(index == NULL) {
         fprintf(stderr, "Failed to open file: %s\n", argv[1]);
         return -42;
     }
     
-    if(strcmp(argv[2], "index") == 0) {
+    if(strcmp(argv[1], "index") == 0) {
         
         if(argc < 4) { // read from stdin
             printf("Indexed %d items\n", index_stdin(index, 0));
         } else { // single input
             sscanf(argv[3], "%d", &pk);
-            bfi_index(index, pk, &argv[4], argc-3);
+            bfi_index(index, pk, &argv[4], argc-4);
         }
         
-    } else if(strcmp(argv[2], "lookup") == 0) {
+    } else if(strcmp(argv[1], "lookup") == 0) {
         if(argc < 3) return usage();
         
         uint32_t *result;
@@ -78,6 +78,7 @@ int main(int argc, char *argv[]) {
         if(c) {
             for(i=0; i<c; i++) printf("%d\n", result[i]);
             fprintf(stderr, "%d results found\n", c);
+            free(result);
         } else {
             fprintf(stderr, "No results found\n");
             return 1;

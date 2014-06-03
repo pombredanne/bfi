@@ -23,7 +23,7 @@ int     bfi_contains(char * haystack, char * needle, int len);
 
 bfi*    bfi_open(char * filename);
 void    bfi_close(bfi * index);
-void    bfi_sync(bfi * index);
+int     bfi_sync(bfi * index);
 
 int     bfi_index(bfi * index, int pk, char * input[], int items);
-int     bf_lookup(bfi * index, char * input[], int items, uint32_t ** ptr);
+int     bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr);
