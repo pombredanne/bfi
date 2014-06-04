@@ -18,7 +18,7 @@ typedef struct {
     char        page_dirty;
 } bfi;
 
-char*   bfi_generate(char * input[], int items);
+void    bfi_generate(char * input[], int items, char ** ptr);
 int     bfi_contains(char * haystack, char * needle, int len);
 
 bfi*    bfi_open(char * filename);

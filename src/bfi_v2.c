@@ -18,7 +18,7 @@
  * 
  * The approximate target was 0.0001 so this holds till over 30 fields are indexed.
  */
-char * bfi_generate(char * input[], int items) {
+void bfi_generate(char * input[], int items, char ** ptr) {
     // use 128 bytes and 12 sectors
     uint32_t hash;
     uint32_t i, offset, pos;
@@ -42,7 +42,7 @@ char * bfi_generate(char * input[], int items) {
     
     //for(i=0; i<128; i++) printf("%02x ", bloom[i]);
     //printf("\n");
-    return bloom;
+    *ptr = bloom;
 }
 
 /**
@@ -58,19 +58,11 @@ int bfi_contains(char * haystack, char * needle, int len) {
     return 1;
 }
 
-void bfi_dump(bfi * index, int full) {
-    if(full) {
-        printf("--\nMagic number: %d\n", index->magic_number);
-        printf("Version: %d\n", index->version);
-        printf("Records: %d\n", index->records);
-    }
-    
-    printf("%08lx Current page: %d, dirty: %d\n", (long)index, index->current_page, index->page_dirty);
-}
-
 bfi * bfi_open(char * filename) {
     bfi * result;
     int i;
+    
+    //fprintf(stderr, "OPEN %s\n", filename);
     
     result = malloc(sizeof(bfi));
     
@@ -81,7 +73,7 @@ bfi * bfi_open(char * filename) {
     fseek(result->fp, 0, 0);
     i = fread(result, 1, BFI_HEADER, result->fp);
     if(i == 0) {
-        printf("Creating new file (only loaded %d bytes)\n", i);
+        //fprintf(stderr, "Creating new file\n");
         result->magic_number = BFI_MAGIC;
         result->version = BFI_VERSION;
         result->records = 0;
@@ -174,7 +166,7 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     bfi_load_page(index, page);
     //bfi_dump(index, 0);
     
-    data = bfi_generate(input, items);
+    bfi_generate(input, items, &data);
     
     // write the PK
     index->pks[offset] = pk;
@@ -186,6 +178,8 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
         *p = data[i];
         p += BFI_PAGE_SIZE;
     }
+    
+    free(data);
     
     index->page_dirty = 1;
     index->records++;
@@ -204,14 +198,13 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
     
     total_pages = (index->records / BFI_PAGE_SIZE) + 1;
     
-    data = bfi_generate(input, items);
+    bfi_generate(input, items, &data);
     
     for(page=0; page<total_pages; page++) {
         bfi_load_page(index, page);
         //printf("PKS: ");
         //for(i=0; i<BFI_PAGE_SIZE; i++) printf("%4d ", index->pks[i]);
         //printf("\n");
-        
         memset(matches, 1, BFI_PAGE_SIZE);
         
         p_data = data;
@@ -250,6 +243,8 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
         }
         
     }
+    
+    free(data);
     
     // shrink it back to actual size
     if(count) {
