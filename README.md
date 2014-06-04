@@ -41,9 +41,9 @@ Dataset: 100,000 records with a 32bit integer primary key.  Each record consists
                           SIZE: 66MB
 ```
 
-Obviously nothing can compare to BTree for speed O(log n) compared to O(n), but I have included it for reference, particularly to demonstrate the storage overhead involved.  3ms full table scan for BFI should be adequate for all but the highest performance (and it should be possible to shave a bit bit more off with mmap)
+Obviously nothing can compare to BTree for speed O(log n) compared to O(n), but I have included it for reference, particularly to demonstrate the storage overhead involved.  3ms full table scan for BFI should be adequate for all but the highest performance applications - after all it scales linearly which equates to 31.5 million records per second (and it should be possible to increase that with mmap and pagesize tweeks)
 
-BFI outperforms SQLite in all metrics - need to test against a higher performance implementation such as MySQL as well as some NoSQL engines like MongoDB.
+BFI is around 10 times faster than SQLite for the full table scans - need to test against a higher performance implementation such as MySQL as well as some NoSQL engines like MongoDB.
 
 Another factor that makes a significant storage impact on NoSQL datasets is that primary keys are typically larger than 4 or 8 bytes as used by RDBs - Mongo has managed to squeeze it to 12bytes, other DBs use 20byte UUIDs.  When using BTree the primary key has to be stored with every value which makes indexes expensive - and often larger than the values indexed.  BFI stores each primary key only once.  If we use 12 byte primary keys in the above examples it adds another 8MB, while the BFI datastructure would only grow by 0.8MB.
 
