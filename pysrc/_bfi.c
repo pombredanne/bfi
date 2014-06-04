@@ -5,7 +5,7 @@
 #include <Python.h>
 #include <string.h>
 #include <stdio.h>
-#include "bfi.h"
+#include "../src/bfi.h"
 
 static char module_docstring[] =
     "Interface module for Bloom Filter Index functions";
