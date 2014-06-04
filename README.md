@@ -19,24 +19,33 @@ See [implementation](implementation.md) details.
 
 ## Performance
 
-Early days but showing promise.  The SQLite database contains the raw data in an unindexed table with 10 columns.
-I have included BTree as this is currently the predominant method of adding non-key indexes to document orientated databases.
+Early days but showing promise.  
 
-Dataset: 471,950 items with 10 fields indexed and a 32bit integer primary key.  Tests were run on an i7 laptop with solid state drive.
+Dataset: 100,000 records with a 32bit integer primary key.  Each record consists of 10 fields with a length of 16-20 bytes. Tests were run on an i7 laptop with solid state drive.
 
-Property              | BFI       | SQLite    | BTree   
---------------------- | --------- |---------- | ---------------------
-Index time            | 11.4s     | **4.63s** | 40.8s                 
-Size:                 | 60MB      | **25MB**  | 12-18MB * 10 = 140MB 
-Search time           | O(n)      | O(n)      | O(logn)               
-Query time (1 field)  | 0.018s    | 0.113s    | **0.004s**            
-Query time (3 fields) | **0.033s**| 0.118s    | 0.275s                
+```
+## BFI ##
+                         INDEX:    1.01441s
+                    LOOKUP (1):    0.00317s
+                    LOOKUP (3):    0.00555s
+                          SIZE: 13MB
+### SQLite3 ###
+                         INDEX:    1.70589s
+                    LOOKUP (1):    0.04929s
+                    LOOKUP (3):    0.04759s
+                          SIZE: 25MB
+### BTree ###
+                         INDEX:    5.77204s
+                    LOOKUP (1):    0.00001s
+                    LOOKUP (3):    0.00002s
+                          SIZE: 66MB
+```
 
-The BTree timings use bssdb and are run via a python timeit so should be pretty accurate but are not like-for-like.
+Obviously nothing can compare to BTree for speed O(log n) compared to O(n), but I have included it for reference, particularly to demonstrate the storage overhead involved.  3ms full table scan for BFI should be adequate for all but the highest performance (and it should be possible to shave a bit bit more off with mmap)
 
-The characteristics of BFI are favourable both in terms of storage and index size.  BTree naturally wins hands down on a single query as it should only require around 20 seeks with a well balanced tree, though sub 20ms is pretty respectable for BFI.  Where multiple fields are queried simultaneously BFI has an advantange (though the BTree implementation is rather quick and dirty).
+BFI outperforms SQLite in all metrics - need to test against a higher performance implementation such as MySQL as well as some NoSQL engines like MongoDB.
 
-The other factor that makes a significant storage impact on NoSQL datasets is that primary keys are typically larger than RMDB - Mongo has managed to squeeze it to 12bytes, other DBs use 20byte UUIDs.  When using BTree the primary key has to be stored with every value which makes indexes expensive - and often larger than the data indexed.  BFI stores each primary key only once.  If we use 12 byte primary keys in the above examples it adds 3.8MB to each btree, 38MB in total, while the BFI datastructure would only grow by 3.8MB.
+Another factor that makes a significant storage impact on NoSQL datasets is that primary keys are typically larger than 4 or 8 bytes as used by RDBs - Mongo has managed to squeeze it to 12bytes, other DBs use 20byte UUIDs.  When using BTree the primary key has to be stored with every value which makes indexes expensive - and often larger than the values indexed.  BFI stores each primary key only once.  If we use 12 byte primary keys in the above examples it adds another 8MB, while the BFI datastructure would only grow by 0.8MB.
 
 One last point to make is that if we increased this to 30 fields, only the indexing time of BFI would go up (x3), not the storage requirements or query times.  This is ideal for document-orientated databases where developers should be storing all immediately related data in the document rather than normalising.
 
@@ -52,4 +61,4 @@ One last point to make is that if we increased this to 30 fields, only the index
 * Implement mmap for lookup - should give significant boost
 * Get someone who can actually write C to go over the code.
 * Add comparison to current NoSQL full table scan speeds.
-* Add comparison to proper(!) RDBM (MySQL)
+* Add comparison to proper(!) RDB (MySQL)
