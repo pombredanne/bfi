@@ -31,6 +31,10 @@ void bfi_generate(char * input[], int items, char ** ptr) {
     //for(i=0; i<items; i++) printf("GENERATE: %s\n", input[i]);
     
     bloom = malloc(BLOOM_SIZE);
+    if(bloom == NULL) {
+        perror("Failed to allocate memory for bloom filter");
+        exit(EXIT_FAILURE);
+    }
     memset(bloom, 0, BLOOM_SIZE);
  
     for(i=0; i<items; i++) { 
@@ -69,9 +73,16 @@ bfi * bfi_open(char * filename) {
     //fprintf(stderr, "OPEN %s\n", filename);
     
     result = malloc(sizeof(bfi));
+    if(result == NULL) {
+        perror("Failed to allocate memory for resource");
+        return NULL;
+    }
     
     result->fp = open(filename, O_RDWR | O_CREAT, (mode_t)0600);
-    if(!result->fp) return NULL;
+    if(!result->fp) {
+        perror("Failed to open file");
+        return NULL;
+    }
     
     lseek(result->fp, 0, 0);
     i = read(result->fp, result, BFI_HEADER);
@@ -95,38 +106,28 @@ bfi * bfi_open(char * filename) {
     
     result->map = NULL;
     result->current_page = -1;
-    result->page_dirty = 0;
-    if(result->records) {
-    }
     result->total_pages = result->records ? (result->records / BFI_RECORDS_PER_PAGE) + 1 : 0;
-    
-    //bfi_dump(result, 1);
     
     return result;
 }
 
 int bfi_sync(bfi * index) {
-    return 0;
-    if(!index->page_dirty) return index->records;
     
-    lseek(index->fp, BFI_HEADER + (BFI_PAGE_SIZE * index->current_page), SEEK_SET);
-    write(index->fp, &index->pks, BFI_PK_SIZE * BFI_RECORDS_PER_PAGE);
-    write(index->fp, index->page, BLOOM_SIZE * BFI_RECORDS_PER_PAGE);
+    if(index->map == NULL) return index->records;
     
-    index->current_page = -1;
-    index->page_dirty = 0;
+    // write the current page to disk
+    sync_file_range(index->fp, BFI_HEADER + (BFI_PAGE_SIZE * index->current_page), BFI_PAGE_SIZE);
+    
+    memcpy(index->map, index, BFI_HEADER);
+    sync_file_range(index->fp, 0, BFI_HEADER);
     
     return index->records;
 }
 
 void bfi_close(bfi * index) {
     bfi_sync(index);
-    
     bfi_release_map(index);
     
-    //printf("Writing header\n");
-    lseek(index->fp, 0, SEEK_SET);
-    write(index->fp, index, BFI_HEADER);
     close(index->fp);
     
     free(index);
@@ -143,7 +144,7 @@ void bfi_release_map(bfi * index) {
     }
 }
 
-void bfi_load_mmap_page(bfi *index, int page) {
+void bfi_load_mapped_page(bfi *index, int page) {
     
     if(page == index->current_page)  return;
     
@@ -186,7 +187,7 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     offset = index->records % BFI_RECORDS_PER_PAGE;
     
     //printf("Page: %d, offset: %d\n", page, offset);
-    bfi_load_mmap_page(index, page);
+    bfi_load_mapped_page(index, page);
     
     bfi_generate(input, items, &data);
     
@@ -203,7 +204,6 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     
     free(data);
     
-    index->page_dirty = 1;
     index->records++;
     
     return 0;
@@ -221,7 +221,7 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
     bfi_generate(input, items, &data);
     
     for(page=0; page<index->total_pages; page++) {
-        bfi_load_mmap_page(index, page);
+        bfi_load_mapped_page(index, page);
         //printf("PKS: ");
         //for(i=0; i<BFI_RECORDS_PER_PAGE; i++) printf("%4d ", index->pks[i]);
         //printf("\n");
@@ -256,6 +256,10 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
                 if(count % 100 == 0) {
                     buf_size = ((count / 100) + 1) * 100;
                     result = realloc(result, BFI_PK_SIZE * buf_size);
+                    if(result == NULL) {
+                        perror("Failed to resize output");
+                        exit(EXIT_FAILURE);
+                    }
                 }
                 result[count++] = index->pks[i];
                 //printf("%d ", index->pks[i]);
@@ -269,6 +273,10 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
     // shrink it back to actual size
     if(count) {
         result = realloc(result, BFI_PK_SIZE * count);
+        if(result == NULL) {
+            perror("Failed to resize output");
+            exit(EXIT_FAILURE);
+        }
     }
     
     *ptr = result;

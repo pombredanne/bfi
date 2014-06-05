@@ -19,7 +19,6 @@ typedef struct {
     int32_t     total_pages;
     uint32_t *  pks;
     char *      page;
-    char        page_dirty;
 } bfi;
 
 void    bfi_generate(char * input[], int items, char ** ptr);

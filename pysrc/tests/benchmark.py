@@ -1,7 +1,14 @@
 import bfi, sqlite3, bsddb
 import os, struct
 
+try:
+    import pymongo
+    HAS_MONGO = True
+except ImportError:
+    HAS_MONGO = False
+
 FIELDS = 10
+RECORDS = 100000
 RS = '\x1E'
 
 def wrapper(func, *args, **kwargs):
@@ -78,8 +85,8 @@ class BTreeProxy(object):
     def close(self):
         for i in range(FIELDS):
             self.dbs['FOO_%d' % i].close();
-            #os.unlink('%s/FOO_%d.db' % (self.directory, i))
-        #os.rmdir(self.directory)
+            os.unlink('%s/FOO_%d.db' % (self.directory, i))
+        os.rmdir(self.directory)
             
     def sync(self): 
         for db in self.dbs.values():
@@ -119,29 +126,74 @@ class BTreeProxy(object):
         result = list(result)
         result.sort()
         return result
-        
 
-def run_benchmarks(cls, filename, fields=10, count=100000):
+    def size(self):
+        return "Unknown"
+
+class MongoProxy(object):
+
+    DB = 'test_database'
+    COLLECTION = 'benchmark_data'
+
+    def __init__(self, filename):
+        self.client = pymongo.MongoClient()
+        self.db = self.client[self.DB]
+        if self.COLLECTION in self.db.collection_names():
+            self.db.drop_collection(self.COLLECTION)
+        self.collection = self.db[self.COLLECTION]
+
+    def add(self, pk, items):
+        data = dict([ x.split(":") for x in items ])
+
+        data['_id'] = pk
+        self.collection.insert(data)
+
+    def sync(self): pass
+
+    def close(self):
+        self.collection = None
+        self.db = None
+        self.client.close()
+
+    def lookup(self, items):
+	query = dict([ x.split(":") for x in items ])
+	
+        result = [ x['_id'] for x in self.collection.find(query)]
+        return result
+
+    def size(self):
+        stats = self.db.stats()
+	return "%dMB (+%dMB indexes)" % (stats['dataSize'] / 1000000, stats['indexSize'] / 1000000)
+
+def run_benchmarks(cls, filename, fields=10, count=RECORDS):
     import timeit
+
+    RECORD = 83376
     
-    if os.path.exists(filename): os.unlink(filename)
+    if filename and os.path.isfile(filename): os.unlink(filename)
     
     obj = cls(filename)
     
     result = timeit.timeit(wrapper(create_index, obj, count), number=1)
     report("INDEX", result, 1)
     
-    #print obj.lookup(['FOO_6:This is a test 82435'])
-    assert obj.lookup(['FOO_6:This is a test 82435']) == [82435]
-    result = timeit.timeit(wrapper(obj.lookup, ['FOO_6:This is a test 82435']), number=100)
+    #print obj.lookup(['FOO_6:This is a test %d' % RECORD])
+    assert obj.lookup(['FOO_6:This is a test %d' % RECORD]) == [RECORD]
+    result = timeit.timeit(wrapper(obj.lookup, ['FOO_6:This is a test %d' % RECORD]), number=100)
     report("LOOKUP (1)", result, 100)
-    assert obj.lookup(['FOO_6:This is a test 82435', 
-                     'FOO_8:This is a test 82435', 'FOO_2:This is a test 82435']) == [82435]
-    result = timeit.timeit(wrapper(obj.lookup, ['FOO_6:This is a test 82435', 
-            'FOO_8:This is a test 82435', 'FOO_2:This is a test 82435']), number=100)
+    query = ['FOO_6:This is a test %d' % RECORD, 
+                     'FOO_8:This is a test %d' % RECORD,
+                     'FOO_2:This is a test %d' % RECORD]
+    assert obj.lookup(query) == [RECORD]
+    result = timeit.timeit(wrapper(obj.lookup, query), number=100)
     report("LOOKUP (3)", result, 100)
     
-    print "%30s: %dMB" % ("SIZE", os.stat(filename).st_size / 1000000)
+    if filename and os.path.isfile(filename):
+        print "%30s: %dMB" % ("SIZE", os.stat(filename).st_size / 1000000)
+    else:
+        print "%30s: %s" % ("SIZE", obj.size())
+
+    obj.close()
 
 if __name__ == '__main__':
     
@@ -151,3 +203,6 @@ if __name__ == '__main__':
     run_benchmarks(SQLiteProxy, 'test.sq3')
     print '### BTree ###'
     run_benchmarks(BTreeProxy, 'test.db')
+    if HAS_MONGO:
+        print "### MongoDB ###"
+        run_benchmarks(MongoProxy, None)
