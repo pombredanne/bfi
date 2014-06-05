@@ -2,10 +2,14 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #include "murmur.h"
 #include "bfi.h"
 
 #define BFI_VERSION 0x02
+
+void bfi_release_map(bfi * index);
 
 /**
  * A super-simple bloom filter implementation optomised for alignment and efficiency
@@ -40,7 +44,7 @@ void bfi_generate(char * input[], int items, char ** ptr) {
         }
     }
     
-    //for(i=0; i<128; i++) printf("%02x ", bloom[i]);
+    // for(i=0; i<128; i++) printf("%02x ", bloom[i]);
     //printf("\n");
     *ptr = bloom;
 }
@@ -66,17 +70,17 @@ bfi * bfi_open(char * filename) {
     
     result = malloc(sizeof(bfi));
     
-    result->fp = fopen(filename, "r+b");
-    if(!result->fp) result->fp = fopen(filename, "w+b");
+    result->fp = open(filename, O_RDWR | O_CREAT, (mode_t)0600);
     if(!result->fp) return NULL;
     
-    fseek(result->fp, 0, 0);
-    i = fread(result, 1, BFI_HEADER, result->fp);
+    lseek(result->fp, 0, 0);
+    i = read(result->fp, result, BFI_HEADER);
     if(i == 0) {
         //fprintf(stderr, "Creating new file\n");
         result->magic_number = BFI_MAGIC;
         result->version = BFI_VERSION;
         result->records = 0;
+        write(result->fp, result, BFI_HEADER);
     }
     
     if(result->magic_number != BFI_MAGIC) {
@@ -89,8 +93,12 @@ bfi * bfi_open(char * filename) {
         return NULL;
     }
     
+    result->map = NULL;
     result->current_page = -1;
     result->page_dirty = 0;
+    if(result->records) {
+    }
+    result->total_pages = result->records ? (result->records / BFI_RECORDS_PER_PAGE) + 1 : 0;
     
     //bfi_dump(result, 1);
     
@@ -98,16 +106,12 @@ bfi * bfi_open(char * filename) {
 }
 
 int bfi_sync(bfi * index) {
-    int size;
-    
+    return 0;
     if(!index->page_dirty) return index->records;
     
-    //printf("Syncing page %d\n", index->current_page);
-    size = (sizeof(uint32_t) + BLOOM_SIZE) * BFI_PAGE_SIZE;
-    
-    fseek(index->fp, BFI_HEADER + (size * index->current_page), SEEK_SET);
-    fwrite(&index->pks, sizeof(uint32_t), BFI_PAGE_SIZE, index->fp);
-    fwrite(index->page, BFI_PAGE_SIZE, BLOOM_SIZE, index->fp);
+    lseek(index->fp, BFI_HEADER + (BFI_PAGE_SIZE * index->current_page), SEEK_SET);
+    write(index->fp, &index->pks, BFI_PK_SIZE * BFI_RECORDS_PER_PAGE);
+    write(index->fp, index->page, BLOOM_SIZE * BFI_RECORDS_PER_PAGE);
     
     index->current_page = -1;
     index->page_dirty = 0;
@@ -118,53 +122,71 @@ int bfi_sync(bfi * index) {
 void bfi_close(bfi * index) {
     bfi_sync(index);
     
+    bfi_release_map(index);
+    
     //printf("Writing header\n");
-    fseek(index->fp, 0, SEEK_SET);
-    fwrite(index, 1, BFI_HEADER, index->fp);
-    fclose(index->fp);
+    lseek(index->fp, 0, SEEK_SET);
+    write(index->fp, index, BFI_HEADER);
+    close(index->fp);
     
     free(index);
 }
 
-void bfi_load_page(bfi * index, int page) {
-    int size, c;
+void bfi_release_map(bfi * index) {
+    if(index->map != NULL) {
+        int size = BFI_HEADER + (index->total_pages * BFI_PAGE_SIZE);
+        if (munmap(index->map, size) == -1) {
+            perror("Error un-mmapping the file");
+            exit(EXIT_FAILURE);
+        }
+        index->map = NULL;
+    }
+}
+
+void bfi_load_mmap_page(bfi *index, int page) {
     
     if(page == index->current_page)  return;
-    bfi_sync(index);
     
-    size = (sizeof(uint32_t) + BLOOM_SIZE) * BFI_PAGE_SIZE;
-    
-    fseek(index->fp, BFI_HEADER + (size * page), SEEK_SET);
-    //printf("Loading page %d from 0x%04lx\n", page, ftell(index->fp));
-    c = fread(index->pks, sizeof(uint32_t), BFI_PAGE_SIZE, index->fp);
-    if(c < BFI_PAGE_SIZE) {
-        // primary keys are always all or nothing
-        memset(index->pks, 0, sizeof(uint32_t) * BFI_PAGE_SIZE);
-    }
-    c = fread(index->page, 1, BFI_PAGE_SIZE * BLOOM_SIZE, index->fp);
-    if( c < BFI_PAGE_SIZE * BLOOM_SIZE) {
-        memset(index->page, 0, BFI_PAGE_SIZE * BLOOM_SIZE);
+    // check page is within current pages
+    if(page >= index->total_pages) {
+        //printf("Remapping file\n");
+        bfi_release_map(index);
+        // grow the file
+        lseek(index->fp, BFI_HEADER + (BFI_PAGE_SIZE * (page+1)), SEEK_SET);
+        if(write(index->fp, "", 1) == -1) {
+            perror("Failed to extend file");
+            exit(EXIT_FAILURE);
+        }
+        index->total_pages++;
     }
     
-    // leave the file pointer at the end of the page so a full page is writen
-    fseek(index->fp, BFI_HEADER + (size * (page + 1)), SEEK_SET);
+    int page_start = BFI_HEADER + (BFI_PAGE_SIZE * page);
     
-    index->current_page = page;
+    if(index->map == NULL) {
+        index->map = mmap(0, BFI_HEADER + (index->total_pages * BFI_PAGE_SIZE), 
+                PROT_READ | PROT_WRITE, MAP_SHARED, index->fp, 0);
+        if (index->map == MAP_FAILED) {
+            close(index->fp);
+            perror("Error mmapping the file");
+            exit(EXIT_FAILURE);
+        }
+    }
     
-    index->page_dirty = 0;
-    //bfi_dump(index, 0);
+    index->pks = (uint32_t *) &index->map[page_start];
+    index->page = &(index->map[page_start + (BFI_PK_SIZE * BFI_RECORDS_PER_PAGE)]);
+    
+    
 }
 
 int bfi_index(bfi * index, int pk, char * input[], int items) {
     int page, offset, i;
     char * p, * data;
     
-    page = index->records / BFI_PAGE_SIZE;
-    offset = index->records % BFI_PAGE_SIZE;
+    page = index->records / BFI_RECORDS_PER_PAGE;
+    offset = index->records % BFI_RECORDS_PER_PAGE;
     
     //printf("Page: %d, offset: %d\n", page, offset);
-    bfi_load_page(index, page);
-    //bfi_dump(index, 0);
+    bfi_load_mmap_page(index, page);
     
     bfi_generate(input, items, &data);
     
@@ -176,7 +198,7 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     p += offset;
     for(i=0; i<BLOOM_SIZE; i++) {
         *p = data[i];
-        p += BFI_PAGE_SIZE;
+        p += BFI_RECORDS_PER_PAGE;
     }
     
     free(data);
@@ -188,35 +210,33 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
 }
 
 int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
-    int page, total_pages, i, j, buf_size, count;
-    char * data, matches[BFI_PAGE_SIZE];
+    int page, i, j, buf_size, count;
+    char * data, matches[BFI_RECORDS_PER_PAGE];
     char * p_data, * p_index;
     uint32_t * result;
     
     count = 0;
     result = NULL;
     
-    total_pages = (index->records / BFI_PAGE_SIZE) + 1;
-    
     bfi_generate(input, items, &data);
     
-    for(page=0; page<total_pages; page++) {
-        bfi_load_page(index, page);
+    for(page=0; page<index->total_pages; page++) {
+        bfi_load_mmap_page(index, page);
         //printf("PKS: ");
-        //for(i=0; i<BFI_PAGE_SIZE; i++) printf("%4d ", index->pks[i]);
+        //for(i=0; i<BFI_RECORDS_PER_PAGE; i++) printf("%4d ", index->pks[i]);
         //printf("\n");
-        memset(matches, 1, BFI_PAGE_SIZE);
+        memset(matches, 1, BFI_RECORDS_PER_PAGE);
         
         p_data = data;
         p_index = index->page;
         
         for(i=0; i<BLOOM_SIZE; i++) {
             if(*p_data == 0) {
-                p_index += BFI_PAGE_SIZE;
+                p_index += BFI_RECORDS_PER_PAGE;
                 //printf("-");
             } else {
                 //printf("DATA: %02x\nINDEX: ", *p_data);
-                for(j=0; j<BFI_PAGE_SIZE; j++) {
+                for(j=0; j<BFI_RECORDS_PER_PAGE; j++) {
                     //printf("%02x ", *p_index);
                     if((*p_data & *p_index) != *p_data) {
                         matches[j] = 0;
@@ -224,18 +244,18 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
                     p_index++;
                 }
                 //printf("\nMATCHES: ");
-                //for(j=0; j<BFI_PAGE_SIZE; j++) printf("%d", (int)matches[j]);
+                //for(j=0; j<BFI_RECORDS_PER_PAGE; j++) printf("%d", (int)matches[j]);
                 //printf("\n");
             }
             p_data++;
         }
         
         // output the result
-        for(i=0; i<BFI_PAGE_SIZE; i++) {
+        for(i=0; i<BFI_RECORDS_PER_PAGE; i++) {
             if(matches[i]) {
                 if(count % 100 == 0) {
                     buf_size = ((count / 100) + 1) * 100;
-                    result = realloc(result, sizeof(uint32_t) * buf_size);
+                    result = realloc(result, BFI_PK_SIZE * buf_size);
                 }
                 result[count++] = index->pks[i];
                 //printf("%d ", index->pks[i]);
@@ -248,7 +268,7 @@ int bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr) {
     
     // shrink it back to actual size
     if(count) {
-        result = realloc(result, sizeof(uint32_t) * count);
+        result = realloc(result, BFI_PK_SIZE * count);
     }
     
     *ptr = result;

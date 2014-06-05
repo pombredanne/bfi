@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     
     index = bfi_open(argv[2]);
     if(index == NULL) {
-        fprintf(stderr, "Failed to open file: %s\n", argv[1]);
+        fprintf(stderr, "Failed to open file: %s\n", argv[2]);
         return -42;
     }
     

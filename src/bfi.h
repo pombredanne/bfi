@@ -3,18 +3,22 @@
 #define BLOOM_SIZE 128
 #define BFI_MAGIC 0x053e // 1342
 #define BFI_HEADER 8
-#define BFI_PAGE_SIZE 1000
+#define BFI_RECORDS_PER_PAGE 1000
+#define BFI_PK_SIZE sizeof(uint32_t)
+#define BFI_PAGE_SIZE (BFI_PK_SIZE + BLOOM_SIZE) * BFI_RECORDS_PER_PAGE
 
 // a bunch of blooms in a file
 typedef struct {
     uint16_t    magic_number;
     uint8_t     version;
-    uint8_t     unused;
+    uint8_t     unused; // bring it to 8 byte header
     uint32_t    records;
-    FILE        * fp;
+    int         fp;
+    char *      map;
     int32_t     current_page;
-    uint32_t    pks[BFI_PAGE_SIZE];
-    char        page[BLOOM_SIZE * BFI_PAGE_SIZE];
+    int32_t     total_pages;
+    uint32_t *  pks;
+    char *      page;
     char        page_dirty;
 } bfi;
 
