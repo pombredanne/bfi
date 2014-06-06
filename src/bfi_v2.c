@@ -116,10 +116,10 @@ int bfi_sync(bfi * index) {
     if(index->map == NULL) return index->records;
     
     // write the current page to disk
-    sync_file_range(index->fp, BFI_HEADER + (BFI_PAGE_SIZE * index->current_page), BFI_PAGE_SIZE);
+    msync(&index->map[BFI_HEADER + (BFI_PAGE_SIZE * index->current_page)], BFI_PAGE_SIZE, MS_SYNC);
     
     memcpy(index->map, index, BFI_HEADER);
-    sync_file_range(index->fp, 0, BFI_HEADER);
+    msync(index->map, BFI_HEADER, MS_SYNC);
     
     return index->records;
 }
