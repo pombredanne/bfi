@@ -19,6 +19,8 @@ static char bfi_index_docstring[] =
     "Insert or update an index by primary key.";
 static char bfi_lookup_docstring[] =
     "Retrieve all the possible primary keys for a set of values.";
+static char bfi_stat_docstring[] =
+    "Get stats for a BFI index";
 
 static char bfi_cap_ptr[] = "BFI.ptr";
 
@@ -27,6 +29,7 @@ static PyObject *bfi_bfi_close(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_sync(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_index(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args);
+static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args);
 
 static PyMethodDef module_methods[] = {
     {"bfi_open", bfi_bfi_open, METH_VARARGS, bfi_open_docstring},
@@ -34,6 +37,7 @@ static PyMethodDef module_methods[] = {
     {"bfi_sync", bfi_bfi_sync, METH_VARARGS, bfi_sync_docstring},
     {"bfi_index", bfi_bfi_index, METH_VARARGS, bfi_index_docstring},
     {"bfi_lookup", bfi_bfi_lookup, METH_VARARGS, bfi_lookup_docstring},
+    {"bfi_stat", bfi_bfi_stat, METH_VARARGS, bfi_stat_docstring},
     {NULL, NULL, 0, NULL}
 };
 
@@ -147,5 +151,23 @@ static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args) {
     for(i=0; i<c; i++) PyList_SetItem(list, i, PyInt_FromLong(result[i]));
     
     PyObject *ret = Py_BuildValue("O", list);
+    return ret;
+}
+
+static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args) {
+    PyObject *cap;
+    bfi * index;
+    
+    if(!PyArg_ParseTuple(args, "O", &cap)) return NULL;
+    if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
+    
+    PyObject *ret = Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i,s:i}",
+            "version", index->version,
+            "records", index->records,
+            "pages", index->total_pages,
+            "records_per_page", BFI_RECORDS_PER_PAGE,
+            "bloom_size", BLOOM_SIZE,
+            "page_size", BFI_PAGE_SIZE,
+            "size", BFI_HEADER + (BFI_PAGE_SIZE * index->total_pages) + 1);
     return ret;
 }

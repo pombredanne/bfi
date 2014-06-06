@@ -44,6 +44,9 @@ class BloomFilterIndex(object):
         if self._ptr is None: raise RuntimeError("Index is closed")
         #print "PYTHON INDEX", self._index
         return _bfi.bfi_lookup(self._ptr, values)
+	
+    def stat(self):
+        return _bfi.bfi_stat(self._ptr)
         
     def __repr__(self):
         return "<BloomFilterIndex %s>" % self.filename

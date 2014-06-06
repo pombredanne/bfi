@@ -18,6 +18,8 @@ print "SECOND", index.lookup(['SECOND-2'])
 
 print "COMBINED", index.lookup(['FIRST-5', 'SECOND-2'])
 
+print "STAT", index.stat()
+
 index.close()
 
 os.unlink(INDEX_FILE);
