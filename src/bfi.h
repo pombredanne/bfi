@@ -28,5 +28,7 @@ bfi*    bfi_open(char * filename);
 void    bfi_close(bfi * index);
 int     bfi_sync(bfi * index);
 
-int     bfi_index(bfi * index, int pk, char * input[], int items);
+int     bfi_append(bfi * index, int pk, char * input[], int items);
+int     bfi_insert(bfi * index, int pk, char * input[], int items);
+int     bfi_delete(bfi * index, int pk);
 int     bfi_lookup(bfi * index, char * input[], int items, uint32_t ** ptr);

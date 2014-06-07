@@ -15,8 +15,12 @@ static char bfi_close_docstring[] =
     "Flush and close a BFI file.";
 static char bfi_sync_docstring[] =
     "Flush changes to disk.";
-static char bfi_index_docstring[] =
-    "Insert or update an index by primary key.";
+static char bfi_append_docstring[] =
+    "Adds entry to the end of index without checking pk.";
+static char bfi_insert_docstring[] =
+    "Updates or appends entry by pk";
+static char bfi_delete_docstring[] =
+    "Remove an entry from the index by pk";
 static char bfi_lookup_docstring[] =
     "Retrieve all the possible primary keys for a set of values.";
 static char bfi_stat_docstring[] =
@@ -27,7 +31,9 @@ static char bfi_cap_ptr[] = "BFI.ptr";
 static PyObject *bfi_bfi_open(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_close(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_sync(PyObject *self, PyObject *args);
-static PyObject *bfi_bfi_index(PyObject *self, PyObject *args);
+static PyObject *bfi_bfi_append(PyObject *self, PyObject *args);
+static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args);
+static PyObject *bfi_bfi_delete(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args);
 
@@ -35,7 +41,9 @@ static PyMethodDef module_methods[] = {
     {"bfi_open", bfi_bfi_open, METH_VARARGS, bfi_open_docstring},
     {"bfi_close", bfi_bfi_close, METH_VARARGS, bfi_close_docstring},
     {"bfi_sync", bfi_bfi_sync, METH_VARARGS, bfi_sync_docstring},
-    {"bfi_index", bfi_bfi_index, METH_VARARGS, bfi_index_docstring},
+    {"bfi_append", bfi_bfi_append, METH_VARARGS, bfi_append_docstring},
+    {"bfi_insert", bfi_bfi_insert, METH_VARARGS, bfi_insert_docstring},
+    {"bfi_delete", bfi_bfi_delete, METH_VARARGS, bfi_delete_docstring},
     {"bfi_lookup", bfi_bfi_lookup, METH_VARARGS, bfi_lookup_docstring},
     {"bfi_stat", bfi_bfi_stat, METH_VARARGS, bfi_stat_docstring},
     {NULL, NULL, 0, NULL}
@@ -51,13 +59,19 @@ PyMODINIT_FUNC init_bfi(void) {
 
 static PyObject *bfi_bfi_open(PyObject *self, PyObject *args) {
     char * filename;
+
+    errno = 0;
     
     if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
     
     bfi * index = bfi_open(filename);
     
     if(index == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to open index.");
+        if(errno) {
+            PyErr_SetString(PyExc_IOError, strerror(errno));
+        } else {
+            PyErr_SetString(PyExc_IOError, "Failed to open index");
+        }
         return NULL;
     }
     
@@ -95,7 +109,7 @@ void dump_strings(char ** input, int len) {
     for(i=0; i<len; i++) printf("%s\n", input[i]);
 }
 
-static PyObject *bfi_bfi_index(PyObject *self, PyObject *args) {
+static PyObject *bfi_bfi_append(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
     int pk, c, i;
@@ -106,8 +120,8 @@ static PyObject *bfi_bfi_index(PyObject *self, PyObject *args) {
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
     
     c = PyList_Size(values);
-    if(!c) {
-        PyErr_SetString(PyExc_RuntimeError, "Need at least one value to index.");
+    if(c<1) {
+        PyErr_SetString(PyExc_ValueError, "Need at least one value to index.");
         return NULL;
     }
     buf = malloc(sizeof(char*) * c);
@@ -116,9 +130,50 @@ static PyObject *bfi_bfi_index(PyObject *self, PyObject *args) {
     }
     //dump_strings(buf, c);
     
-    int result = bfi_index(index, pk, buf, c);
+    int result = bfi_append(index, pk, buf, c);
+    free(buf);
     
     PyObject *ret = Py_BuildValue("i", result);
+    return ret;
+}
+
+static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args) {
+    PyObject *cap;
+    bfi * index;
+    int pk, c, i;
+    PyObject *values;
+    char ** buf;
+    
+    if(!PyArg_ParseTuple(args, "OiO", &cap, &pk, &values)) return NULL;
+    if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
+    
+    c = PyList_Size(values);
+    if(c<1) {
+        PyErr_SetString(PyExc_ValueError, "Need at least one value to index.");
+        return NULL;
+    }
+    buf = malloc(sizeof(char*) * c);
+    for(i=0; i<c; i++) {
+        buf[i] = PyString_AsString(PyList_GetItem(values, i));
+    }
+    //dump_strings(buf, c);
+    
+    int result = bfi_insert(index, pk, buf, c);
+    free(buf);
+    
+    PyObject *ret = Py_BuildValue("i", result);
+    return ret;
+}
+
+static PyObject *bfi_bfi_delete(PyObject *self, PyObject *args) {
+    PyObject *cap;
+    bfi * index;
+    int pk;
+    
+    if(!PyArg_ParseTuple(args, "Oi", &cap, &pk)) return NULL;
+    if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
+    
+    PyObject *ret = Py_BuildValue("i", bfi_delete(index, pk));
     return ret;
 }
 
@@ -134,8 +189,8 @@ static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args) {
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
     
     c = PyList_Size(values);
-    if(!c) {
-        PyErr_SetString(PyExc_RuntimeError, "Need at least one value to lookup.");
+    if(c<1) {
+        PyErr_SetString(PyExc_ValueError, "Need at least one value to lookup.");
         return NULL;
     }
     buf = malloc(sizeof(char*) * c);

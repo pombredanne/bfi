@@ -24,7 +24,8 @@ class BloomFilterIndex(object):
         
     def __del__(self):
         ' Try and clean up '
-        if self._ptr is not None: self.close()
+        if hasattr(self, '_ptr') and self._ptr is not None:
+            self.close()
         
     def close(self):
         if self._ptr is None: raise RuntimeError("Index is closed")
@@ -35,10 +36,17 @@ class BloomFilterIndex(object):
         if self._ptr is None: raise RuntimeError("Index is closed")
         return _bfi.bfi_sync(self._ptr)
 	
-        
-    def add(self, pk, values):
+    def append(self, pk, values):
         if self._ptr is None: raise RuntimeError("Index is closed")
-        return _bfi.bfi_index(self._ptr, pk, values)
+        return _bfi.bfi_append(self._ptr, pk, values)
+        
+    def insert(self, pk, values):
+        if self._ptr is None: raise RuntimeError("Index is closed")
+        return _bfi.bfi_insert(self._ptr, pk, values)
+        
+    def delete(self, pk):
+        if self._ptr is None: raise RuntimeError("Index is closed")
+        return _bfi.bfi_delete(self._ptr, pk)
         
     def lookup(self, values):
         if self._ptr is None: raise RuntimeError("Index is closed")

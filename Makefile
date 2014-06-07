@@ -3,7 +3,7 @@ all:
 	$(MAKE) -C pysrc all
 
 test:
-	cd pysrc; python -m tests.simple; cd -
+	$(MAKE) -C pysrc test
 
 clean:
 	$(MAKE) -C src clean

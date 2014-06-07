@@ -32,7 +32,7 @@ int index_stdin(bfi *index, int row) {
             }
         }
         
-        bfi_index(index, pk, values, i);
+        bfi_append(index, pk, values, i);
         
         row++;
     }
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
             printf("Indexed %d items\n", index_stdin(index, 0));
         } else { // single input
             sscanf(argv[3], "%d", &pk);
-            bfi_index(index, pk, &argv[4], argc-4);
+            bfi_insert(index, pk, &argv[4], argc-4);
         }
         
     } else if(strcmp(argv[1], "lookup") == 0) {

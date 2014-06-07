@@ -9,7 +9,9 @@
 
 #define BFI_VERSION 0x02
 
-void bfi_release_map(bfi * index);
+void    bfi_release_map(bfi * index);
+void    bfi_load_mapped_page(bfi * index, int page);
+int     bfi_write_index(bfi * index, int offset, int pk, char * data);
 
 /**
  * A super-simple bloom filter implementation optomised for alignment and efficiency
@@ -79,7 +81,7 @@ bfi * bfi_open(char * filename) {
     }
     
     result->fp = open(filename, O_RDWR | O_CREAT, (mode_t)0600);
-    if(!result->fp) {
+    if(result->fp == -1) {
         perror("Failed to open file");
         return NULL;
     }
@@ -179,9 +181,35 @@ void bfi_load_mapped_page(bfi *index, int page) {
     
 }
 
-int bfi_index(bfi * index, int pk, char * input[], int items) {
-    int page, offset, i;
-    char * p, * data;
+int bfi_insert(bfi * index, int pk, char * input[], int items) {
+    int page, i;
+    char * data;
+    
+    bfi_generate(input, items, &data);
+    
+    for(page=0; page<index->total_pages; page++) {
+        bfi_load_mapped_page(index, page);
+        for(i=0; i<BFI_RECORDS_PER_PAGE; i++) {
+            if(index->pks[i] == pk) {
+                bfi_write_index(index, i, pk, data);
+                return 0;
+            }
+        }
+    }
+    
+    if(pk != 0) {
+        i = index->records % BFI_RECORDS_PER_PAGE;
+        bfi_write_index(index, i, pk, data);
+    }
+    
+    free(data);
+    
+    return 0;
+}
+
+int bfi_append(bfi * index, int pk, char * input[], int items) {
+    int page, offset;
+    char * data;
     
     page = index->records / BFI_RECORDS_PER_PAGE;
     offset = index->records % BFI_RECORDS_PER_PAGE;
@@ -190,6 +218,23 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
     bfi_load_mapped_page(index, page);
     
     bfi_generate(input, items, &data);
+    
+    bfi_write_index(index, offset, pk, data);
+   
+    free(data);
+    
+    index->records++;
+    
+    return 0;
+}
+
+int bfi_delete(bfi * index, int pk) {
+    return bfi_insert(index, pk, NULL, 0);
+}
+
+int bfi_write_index(bfi *index, int offset, int pk, char * data) {
+    int i;
+    char * p;
     
     // write the PK
     index->pks[offset] = pk;
@@ -201,10 +246,6 @@ int bfi_index(bfi * index, int pk, char * input[], int items) {
         *p = data[i];
         p += BFI_RECORDS_PER_PAGE;
     }
-    
-    free(data);
-    
-    index->records++;
     
     return 0;
 }
