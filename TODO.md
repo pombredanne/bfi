@@ -2,8 +2,8 @@
 
 ### Required for MongoDB integration
 
-- [ ] Format v3 - deleted records, pksize, capacity marker
-- [ ] Reuse deleted space
+- [x] Format v3 - deleted records, pksize, capacity marker
+- [x] Reuse deleted space
 - [ ] Customised primary key size
 - [ ] Build as shared library?
 - [ ] Document C API

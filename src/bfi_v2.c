@@ -69,6 +69,10 @@ int bfi_contains(char * haystack, char * needle, int len) {
     return 1;
 }
 
+/**
+ * Opens a bloom index and returns a resource pointer.
+ * Creates the file if not already present.
+ */
 bfi * bfi_open(char * filename, int format) {
     bfi * result;
     int i;
@@ -121,6 +125,9 @@ bfi * bfi_open(char * filename, int format) {
     return result;
 }
 
+/**
+ * Flush in memory changes to disk
+ */
 int bfi_sync(bfi * index) {
 
     if(index->map == NULL) return index->records;
@@ -134,6 +141,9 @@ int bfi_sync(bfi * index) {
     return index->records;
 }
 
+/**
+ * Close resource and free memory
+ */
 void bfi_close(bfi * index) {
     bfi_sync(index);
     bfi_release_map(index);
@@ -143,6 +153,9 @@ void bfi_close(bfi * index) {
     free(index);
 }
 
+/**
+ * Un map the file
+ */
 void bfi_release_map(bfi * index) {
     if(index->map != NULL) {
         int size = BFI_HEADER + (index->total_pages * BFI_PAGE_SIZE);
@@ -154,6 +167,9 @@ void bfi_release_map(bfi * index) {
     }
 }
 
+/**
+ * Load a specific page into memory
+ */
 void bfi_load_mapped_page(bfi *index, int page) {
 
     if(page == index->current_page)  return;
@@ -189,32 +205,60 @@ void bfi_load_mapped_page(bfi *index, int page) {
 
 }
 
-int bfi_insert(bfi * index, int pk, char * input[], int items) {
+/**
+ * Traverse the index looking for a pk.
+ * If found the current page will be left at the correct page and the offset returned.
+ * If not found the current page will be set to the last and -1 returned.
+ */
+int bfi_seek_pk(bfi * index, int pk) {
     int page, i;
+    
+    for(page=0; page<index->total_pages; page++) {
+        bfi_load_mapped_page(index, page);
+        for(i=0; i<BFI_RECORDS_PER_PAGE; i++)  {
+            if(index->pks[i] == pk) {
+                return i;
+            }
+        }
+    }
+    
+    // pk wasn't found, return -1 and leave current page at end
+    return -1;
+}
+
+/**
+ * Insert or update a set of values for a pk.
+ */
+int bfi_insert(bfi * index, int pk, char * input[], int items) {
+    int offset, i;
     char * data;
 
     bfi_generate(input, items, &data);
 
-    for(page=0; page<index->total_pages; page++) {
-        bfi_load_mapped_page(index, page);
-        for(i=0; i<BFI_RECORDS_PER_PAGE; i++) {
-            if(index->pks[i] == pk) {
-                bfi_write_index(index, i, pk, data);
-                return 0;
-            }
+    offset = bfi_seek_pk(index, pk);
+    
+    if(offset == -1) { // wasn't found
+        if(index->deleted > 0) {
+            offset = bfi_seek_pk(index, 0);
+            index->deleted--;
+        } else {
+            offset = index->records % BFI_RECORDS_PER_PAGE;
+            index->records++;
         }
     }
-
-    if(pk != 0) {
-        i = index->records % BFI_RECORDS_PER_PAGE;
-        bfi_write_index(index, i, pk, data);
-    }
+    
+    bfi_write_index(index, offset, pk, data);
 
     free(data);
 
     return 0;
 }
 
+/**
+ * Append a set of values to the end of the index.
+ * No checking for existance of pk so is possible to end up with inconsistent index.
+ * Super efficient method for rebuilding index from scratch.
+ */
 int bfi_append(bfi * index, int pk, char * input[], int items) {
     int page, offset;
     char * data;
@@ -236,8 +280,24 @@ int bfi_append(bfi * index, int pk, char * input[], int items) {
     return 0;
 }
 
+/**
+ * Delete a pk from the index.
+ * Sets the pk and data to 0.
+ */ 
 int bfi_delete(bfi * index, int pk) {
-    return bfi_insert(index, pk, NULL, 0);
+    int offset;
+    char * data;
+    
+    offset = bfi_seek_pk(index, pk);
+    
+    if(offset == -1) return -1;
+    
+    bfi_generate(NULL, 0, &data);
+    bfi_write_index(index, offset, 0, data);
+    
+    free(data);
+    index->deleted++;
+    return 0;
 }
 
 int bfi_write_index(bfi *index, int offset, int pk, char * data) {

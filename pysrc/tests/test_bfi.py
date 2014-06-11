@@ -50,9 +50,13 @@ class BFITestCase(unittest.TestCase):
         index = self.load_data()
 
         index.delete(576)
+        self.assertEqual(index.stat()['records'], 1499)
 
         self.assertEqual(index.lookup(['FIRST-576']), [])
         self.assertEqual(index.lookup(['FIRST-577']), [577])
+        
+        index.insert(1501, ['FOO', 'BAR'])
+        self.assertEqual(index.stat()['records'], 1500)
 
     def test_bad_input(self):
         index = bfi.BloomFilterIndex(self.TEST_FILE)

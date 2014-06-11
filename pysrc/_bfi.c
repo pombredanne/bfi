@@ -226,7 +226,7 @@ static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args) {
 
     PyObject *ret = Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i,s:i}",
             "version", index->version,
-            "records", index->records,
+            "records", index->records - index->deleted,
             "pages", index->total_pages,
             "records_per_page", BFI_RECORDS_PER_PAGE,
             "bloom_size", BLOOM_SIZE,
