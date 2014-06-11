@@ -223,6 +223,7 @@ int bfi_seek_pk(bfi * index, int pk) {
     }
     
     // pk wasn't found, return -1 and leave current page at end
+    if(index->current_page == -1) bfi_load_mapped_page(index, 0);
     return -1;
 }
 

@@ -46,6 +46,10 @@ class BFITestCase(unittest.TestCase):
         self.assertEqual(index.lookup(['BAR']), [576])
         self.assertEqual(index.lookup(['FIRST-577']), [577])
 
+    def test_scratch_insert(self):
+        index = bfi.BloomFilterIndex(self.TEST_FILE)
+        index.insert(1, ['FOO:1', 'BAR:2'])
+
     def test_delete(self):
         index = self.load_data()
 
