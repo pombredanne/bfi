@@ -2,7 +2,7 @@
 
 #define BLOOM_SIZE 128
 #define BFI_MAGIC 0x053e // 1342
-#define BFI_HEADER 14
+#define BFI_HEADER 12
 #define BFI_RECORDS_PER_PAGE 1000
 #define BFI_PK_SIZE sizeof(uint32_t)
 #define BFI_PAGE_SIZE (BFI_PK_SIZE + BLOOM_SIZE) * BFI_RECORDS_PER_PAGE
@@ -16,11 +16,10 @@
 
 // a bunch of blooms in a file
 typedef struct {
-    // Header fields - 14 bytes
+    // Header fields - 12 bytes
     uint16_t    magic_number;
     uint8_t     version;
     uint8_t     format;
-    uint16_t    pk_size;
     uint32_t    records;
     uint32_t    deleted;
     // Runtime pointers
