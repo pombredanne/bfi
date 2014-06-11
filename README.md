@@ -27,24 +27,28 @@ make test
 
 Early days but showing promise.  
 
-Dataset: 100,000 records with a 32bit integer primary key.  Each record consists of 10 fields with a length of 16-20 bytes. Tests were run on a VM with 512MB memory.
+Dataset: 100,000 records with a 32bit integer primary key.  Each record consists of 10 fields with a length of 16-20 bytes. 
 
+The two databases (SQLite and MongoDB) contain the record data and the times reflect full table scans without any indexes available.
+BFI is a single file index containing all fields while the BTree example uses one file per field and does a simple set() union for the lookup(3) test.
+
+Tests were run on a VM with 512MB memory.
 ```
 ## BFI ##
                          INDEX:    1.40005s
                     LOOKUP (1):    0.00213s
                     LOOKUP (3):    0.00571s
                           SIZE: 13MB
-### SQLite3 ###
-                         INDEX:    2.90530s
-                    LOOKUP (1):    0.11260s
-                    LOOKUP (3):    0.11297s
-                          SIZE: 25MB
 ### BTree ###
                          INDEX:    9.95285s
                     LOOKUP (1):    0.00005s
                     LOOKUP (3):    0.00015s
                           SIZE: 66MB (10 files)
+### SQLite3 ###
+                         INDEX:    2.90530s
+                    LOOKUP (1):    0.11260s
+                    LOOKUP (3):    0.11297s
+                          SIZE: 25MB
 ### MongoDB ###
                          INDEX:    14.15286s
                     LOOKUP (1):    0.07876s
@@ -52,9 +56,9 @@ Dataset: 100,000 records with a 32bit integer primary key.  Each record consists
                           SIZE: 33MB data, 2.8MB index
 ```
 
-Obviously nothing can compare to BTree for speed O(log n) compared to O(n), but I have included it for reference, particularly to demonstrate the storage overhead and indexing time involved.  BFI give sub 3ms full table scans which should be adequate for all but the highest performance applications - and it should scale linearly which equates to 47 million records per seconds!
+Obviously nothing can compare to BTree for lookup speed O(log n) compared to O(n), but its insert time is poor and space wise BFI can index 10-30 fields for the same overhead as two BTree fields.  Sub 3ms lookup times for BFI on this dataset is respectable within an application setting - and it should scale linearly which equates to over 45 million records per seconds (but that needs testing...)!
 
-BFI is around 50 times faster than SQLite for the full table scans (probably due to mmap) and 30 times faster than a basic MongoDB find({...}).  As with all benchmarks, the comparisons could be optomised but the point of this is to demonstrate the low overhead high performance boost that BFI could give to something like MongoDB.
+Compared to the database full table scans, BFI is around 50 times faster than SQLite and 30 times faster than a basic MongoDB find({...}).  As with all benchmarks, the comparisons could be optomised but the point of this is to demonstrate the low overhead high performance boost that BFI could give to something like MongoDB.
 
 Another factor that makes a significant storage impact on NoSQL datasets is that the default primary keys are typically larger than 4 or 8 bytes as used by RDBs - Mongo has managed to squeeze it to 12bytes, other DBs use 20byte UUIDs.  When using BTree the primary key has to be stored with every value which makes indexes expensive - and often larger than the values indexed.  BFI stores each primary key only once.  If we use 12 byte primary keys in the above examples it adds another 8MB, while the BFI datastructure would only grow by 0.8MB.
 
@@ -65,7 +69,7 @@ One last point to make is that if we increased this to 30 fields, only the index
 See [implementation](implementation.md) first for overview of how it works.
 
 I see this as a index you would turn on per collection with all document (and subdocument) elements automatically added as records are inserted or updated.
-Below is an example of the way an auto-indexer should generate strings to pass to BFI.
+Below is an example of the way an indexer should generate strings to pass to BFI.
 
 ```json
 {
@@ -109,7 +113,7 @@ Ideally it would allow users to specify functions to include extra elements e.g.
 
 ```
 add_index(function(record) { 
-  return {'name': record['name'].substring(0, 2) + '*' };
+  return ['name:' + record['name'].substring(0, 2) + '*' ];
 );
 ```
 Which would also allow two character wildcard searching of last name using the existing index e.g. ``name:su*``
@@ -126,7 +130,7 @@ for pk in bfi.lookup(["status:A", "groups:sport]):
 
 ## Limitations
 
-* No range queries - though user defined ranges can be used e.g ``Age:18-30``
+* No range queries - though user defined ranges can be used e.g ``age:18-30``
 * Probabilistic nature of bloom filters requires validation of results.
 * Current implementataion designed to keep probability below 0.001 for up to 30 fields indexed.
 
@@ -135,5 +139,5 @@ for pk in bfi.lookup(["status:A", "groups:sport]):
 * Implement update/delete functionality
 * Get someone who can actually write C to go over the code.
 * Add comparison to proper(!) RDB (MySQL)
-* Add option for large records (256byte bloom, 8 sectors?)
+* Add option for large records (256byte bloom, 8 sectors? - would allow up to 100 fields)
 * Play around with page size
