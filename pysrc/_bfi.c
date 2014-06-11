@@ -1,7 +1,7 @@
 /**
  * Python interface to BFI library
  */
- 
+
 #include <Python.h>
 #include <string.h>
 #include <stdio.h>
@@ -60,21 +60,29 @@ PyMODINIT_FUNC init_bfi(void) {
 static PyObject *bfi_bfi_open(PyObject *self, PyObject *args) {
     char * filename;
 
-    errno = 0;
-    
     if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
-    
-    bfi * index = bfi_open(filename);
-    
+
+    bfi * index = bfi_open(filename, 1);
+
     if(index == NULL) {
-        if(errno) {
-            PyErr_SetString(PyExc_IOError, strerror(errno));
-        } else {
-            PyErr_SetString(PyExc_IOError, "Failed to open index");
+        char * message;
+        switch(errno) {
+            case BFI_ERR_MAGIC:
+                message = "Not a bloom index";
+                break;
+            case BFI_ERR_VERSION:
+                message = "Incompatible file version";
+                break;
+            case BFI_ERR_FORMAT:
+                message = "Incompatible bloom format";
+                break;
+            default:
+                message = strerror(errno);
         }
+        PyErr_SetString(PyExc_IOError, message);
         return NULL;
     }
-    
+
     PyObject *cap = PyCapsule_New(index, bfi_cap_ptr, NULL);
     PyObject *ret = Py_BuildValue("O", cap);
     return ret;
@@ -83,12 +91,12 @@ static PyObject *bfi_bfi_open(PyObject *self, PyObject *args) {
 static PyObject *bfi_bfi_close(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
-    
+
     if(!PyArg_ParseTuple(args, "O", &cap)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     bfi_close(index);
-    
+
     PyObject *ret = Py_BuildValue("i", 0);
     return ret;
 }
@@ -96,10 +104,10 @@ static PyObject *bfi_bfi_close(PyObject *self, PyObject *args) {
 static PyObject *bfi_bfi_sync(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
-    
+
     if(!PyArg_ParseTuple(args, "O", &cap)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     PyObject *ret = Py_BuildValue("i", bfi_sync(index));
     return ret;
 }
@@ -115,10 +123,10 @@ static PyObject *bfi_bfi_append(PyObject *self, PyObject *args) {
     int pk, c, i;
     PyObject *values;
     char ** buf;
-    
+
     if(!PyArg_ParseTuple(args, "OiO", &cap, &pk, &values)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     c = PyList_Size(values);
     if(c<1) {
         PyErr_SetString(PyExc_ValueError, "Need at least one value to index.");
@@ -129,10 +137,10 @@ static PyObject *bfi_bfi_append(PyObject *self, PyObject *args) {
         buf[i] = PyString_AsString(PyList_GetItem(values, i));
     }
     //dump_strings(buf, c);
-    
+
     int result = bfi_append(index, pk, buf, c);
     free(buf);
-    
+
     PyObject *ret = Py_BuildValue("i", result);
     return ret;
 }
@@ -143,10 +151,10 @@ static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args) {
     int pk, c, i;
     PyObject *values;
     char ** buf;
-    
+
     if(!PyArg_ParseTuple(args, "OiO", &cap, &pk, &values)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     c = PyList_Size(values);
     if(c<1) {
         PyErr_SetString(PyExc_ValueError, "Need at least one value to index.");
@@ -157,10 +165,10 @@ static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args) {
         buf[i] = PyString_AsString(PyList_GetItem(values, i));
     }
     //dump_strings(buf, c);
-    
+
     int result = bfi_insert(index, pk, buf, c);
     free(buf);
-    
+
     PyObject *ret = Py_BuildValue("i", result);
     return ret;
 }
@@ -169,10 +177,10 @@ static PyObject *bfi_bfi_delete(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
     int pk;
-    
+
     if(!PyArg_ParseTuple(args, "Oi", &cap, &pk)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     PyObject *ret = Py_BuildValue("i", bfi_delete(index, pk));
     return ret;
 }
@@ -184,10 +192,10 @@ static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args) {
     char ** buf;
     uint32_t * result;
     int c, i;
-    
+
     if(!PyArg_ParseTuple(args, "OO", &cap, &values)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     c = PyList_Size(values);
     if(c<1) {
         PyErr_SetString(PyExc_ValueError, "Need at least one value to lookup.");
@@ -198,13 +206,13 @@ static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args) {
         buf[i] = PyString_AsString(PyList_GetItem(values, i));
     }
     //dump_strings(buf, c);
-    
+
     c = bfi_lookup(index, buf, c, &result);
-    
+
     // build the result
     PyObject *list = PyList_New(c);
     for(i=0; i<c; i++) PyList_SetItem(list, i, PyInt_FromLong(result[i]));
-    
+
     PyObject *ret = Py_BuildValue("O", list);
     return ret;
 }
@@ -212,10 +220,10 @@ static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args) {
 static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
-    
+
     if(!PyArg_ParseTuple(args, "O", &cap)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-    
+
     PyObject *ret = Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i,s:i}",
             "version", index->version,
             "records", index->records,

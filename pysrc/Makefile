@@ -4,6 +4,7 @@ TARGETS = _bfi.so
 all: ${TARGETS}
 
 _bfi.so: _bfi.c ${LIB_DIR}/libbfi.a
+	rm -f $@
 	python setup.py build_ext --inplace
 
 test:
