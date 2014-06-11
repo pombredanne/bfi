@@ -63,7 +63,7 @@ which would allow us to do one or two letter searches for the names and use pred
 
 ## Optomisations
 
-The bloom filter used is optomised for small size and rapid calculation.  It uses 1024 bits with 4 256 bit segments.  The bits to be set are derived from a single run of the murmur3 hash making it very fast to generate.  If i have done the calculations correctly it results in the following error rates and false positives per million records:
+The bloom filter used is optomised for small size and rapid calculation.  It uses 1024 bits with 4 256 bit segments.  The bits to be set are derived from a single run of the murmur3 hash making it very fast to generate.  If I have done the calculations correctly it results in the following error rates and false positives per million records:
 
 Fields indexed | Error rate | fp/m
 -------------- | ---------- | ----
@@ -74,7 +74,7 @@ Fields indexed | Error rate | fp/m
 
 These values seem ideal for around 20 fields which is typical for a document.
 
-V1 stored the data in a very simple [pk1, f1], [pk2, f2] ... file format which worked efficiently and gave sub 100ms lookups but involved checking every single bloom filter.
+V1 stored the data in a very simple [pk1, f1], [pk2, f2] ... file format which worked efficiently and gave sub 30ms lookups but involved checking every single bloom filter.
 
 I investigated [bloofi](http://dl.acm.org/citation.cfm?doid=2501928.2501931) as an option but the added complexity and storage requirements made it not an option - unless the data is efficiently sorted to keep similar filters in the same sections of the tree you end up following many paths before discounting them.
 
@@ -98,8 +98,8 @@ Given that the first x bytes of the query filter are 0, we can skip rows 0-x. Wh
 
 We still have to process the entire datastructure but at least 124 of the 128 rows can be skipped without checking. As the number of criteria increases as does the number of rows that need to be checked per page, up to a worst case similar to version 1.
 
-Inplace updating and deletion of items is straight forward as well as insertion with no need to rebalance.
+In-place updating and deletion of items is straight forward as well as insertion with no need to rebalance.
 
 ## Implementation
 
-This is currently **VERY BAD C** - I need someone to help me clean it up!
+This is currently C that compiles to a static library and some python bindings for it.  I am not a C programer so there are probably many bugs and errors so I need some help to clean it up.
