@@ -62,7 +62,7 @@ static PyObject *bfi_bfi_open(PyObject *self, PyObject *args) {
 
     if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
 
-    bfi * index = bfi_open(filename, 1);
+    bfi * index = bfi_open(filename, BFI_FORMAT_128);
 
     if(index == NULL) {
         char * message;

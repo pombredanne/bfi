@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 3) return usage();
 
-    index = bfi_open(argv[2], 1);
+    index = bfi_open(argv[2], BFI_FORMAT_128);
     if(index == NULL) {
         fprintf(stderr, "Failed to open file: %s\n", argv[2]);
         return -42;
