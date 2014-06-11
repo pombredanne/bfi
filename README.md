@@ -134,10 +134,3 @@ for pk in bfi.lookup(["status:A", "groups:sport]):
 * Probabilistic nature of bloom filters requires validation of results.
 * Current implementataion designed to keep probability below 0.001 for up to 30 fields indexed.
 
-## TODO
-
-* Implement update/delete functionality
-* Get someone who can actually write C to go over the code.
-* Add comparison to proper(!) RDB (MySQL)
-* Add option for large records (256byte bloom, 8 sectors? - would allow up to 100 fields)
-* Play around with page size
