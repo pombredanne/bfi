@@ -15,13 +15,6 @@ int index_stdin(bfi *index, int row) {
         line[c-1] = 0;
         //printf("LINE: %s (%d bytes)\n", line, c);
 
-        //
-        if(sscanf(line, "%d", &pk) < 1) {
-            fprintf(stderr, "Failed to parse primary key for row %d\n", row);
-            return row;
-        }
-        //printf("PK: %d\n", pk);
-
         // rather hacky conversion of string to array
         i = 0;
         values[i++] = line;
