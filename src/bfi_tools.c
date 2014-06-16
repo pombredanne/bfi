@@ -60,8 +60,12 @@ int main(int argc, char *argv[]) {
       sscanf(argv[3], "%d", &pk);
       bfi_append(index, &argv[3], argc-3);
     }
+    
+    bfi_close(index);
+    return 0;
+  }
 
-  } else if(strcmp(argv[1], "lookup") == 0) {
+  if(strcmp(argv[1], "lookup") == 0) {
     if(argc < 3) return usage();
 
     uint32_t *result;
@@ -74,19 +78,21 @@ int main(int argc, char *argv[]) {
       free(result);
     } else {
       fprintf(stderr, "No results found\n");
-      return 1;
     }
 
-  } else if(strcmp(argv[1], "info") == 0) {
-    printf("Slots: %d\n", index->slots);
-    printf("Pages: %d\n", index->total_pages);
-    printf("Bloom format: %d\n", index->format);
-    printf("Page size: %d\n", index->page_size);
-    return 0;
-  }else {
-    return usage();
+    bfi_close(index);
+    return c ? 0 : 1;
   }
 
-  bfi_close(index);
-  return 0;
+  if(strcmp(argv[1], "info") == 0) {
+    printf("Slots: %d\n", index->slots);
+    printf("Pages: %d\n", index->total_pages);
+    printf("Bloom format: %dB\n", index->format);
+    printf("Page size: %dkB\n", index->page_size/1024);
+    bfi_close(index);
+    return 0;
+  }
+
+  bfi_close(index);  
+  return usage();
 }
