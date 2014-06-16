@@ -1,5 +1,5 @@
 import sqlite3, bsddb
-from bfi.plain import PlainBFI
+from bfi.btree import BTreeBFI
 import os, struct
 
 try:
@@ -26,26 +26,6 @@ def create_index(obj, count):
         obj.append("PK-%d" % i, ['FOO_%d:This is a test %d' % (x, i) for x in range(FIELDS)])
     
     obj.sync()
-
-class BFIProxy(object):
-
-    def __init__(self, filename):
-        self.bfi = PlainBFI(filename);
-        self.offsets = {}
-
-    def close(self):
-        self.bfi.close()
-
-    def append(self, pk, items):
-        offset = self.bfi.append(items)
-        self.offsets[offset] = pk
-
-    def sync(self):
-        self.bfi.sync
-
-    def lookup(self, items):
-        result = self.bfi.lookup(items)
-        return [ self.offsets[x] for x in result ]
 
 class SQLiteProxy(object):
     
@@ -220,7 +200,7 @@ def run_benchmarks(cls, filename, fields=10, count=RECORDS):
 if __name__ == '__main__':
     
     print "## BFI ##"
-    run_benchmarks(BFIProxy, 'test.bfi')
+    run_benchmarks(BTreeBFI, 'test.bfi')
     print "### SQLite3 ###"
     run_benchmarks(SQLiteProxy, 'test.sq3')
     print '### BTree ###'
