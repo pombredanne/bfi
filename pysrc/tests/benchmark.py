@@ -1,4 +1,5 @@
-import bfi, sqlite3, bsddb
+import sqlite3, bsddb
+from bfi.plain import PlainBFI
 import os, struct
 
 try:
@@ -29,7 +30,7 @@ def create_index(obj, count):
 class BFIProxy(object):
 
     def __init__(self, filename):
-        self.bfi = bfi.BFI(filename);
+        self.bfi = PlainBFI(filename);
         self.offsets = {}
 
     def close(self):
