@@ -1,7 +1,7 @@
 """
 OO Wrapper for bfi functions
 
->>> index = BFI('test.bfi')
+>>> index = PlainBFI('test.bfi')
 >>> [ index.append(['FIRST-%d' % x, 'SECOND-%d' % (x % 3)]) for x in range(10) ]
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 >>> index.sync()
@@ -16,7 +16,7 @@ OO Wrapper for bfi functions
 """
 import _bfi
 
-class BFI(object):
+class PlainBFI(object):
     
     def __init__(self, filename):
         self.filename = filename

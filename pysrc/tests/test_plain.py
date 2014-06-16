@@ -1,7 +1,7 @@
 import unittest, os
-import bfi
+from bfi.plain import PlainBFI
 
-class BFITestCase(unittest.TestCase):
+class PlainBFITestCase(unittest.TestCase):
 
     TEST_FILE = 'test.bfi'
 
@@ -10,7 +10,7 @@ class BFITestCase(unittest.TestCase):
             os.unlink(self.TEST_FILE)
 
     def load_data(self, count=1500):
-        index = bfi.BFI(self.TEST_FILE)
+        index = PlainBFI(self.TEST_FILE)
 
         [ index.append(['FIRST-%d' % x, 'SECOND-%d' % (x % 73)]) for x in range(count) ]
 
@@ -47,7 +47,7 @@ class BFITestCase(unittest.TestCase):
         self.assertEqual(index.lookup(['FIRST-577']), [577])
 
     def test_bad_input(self):
-        index = bfi.BFI(self.TEST_FILE)
+        index = PlainBFI(self.TEST_FILE)
 
         with self.assertRaisesRegexp(ValueError, 'Need at least one value to index'):
             index.append('Test')
@@ -58,7 +58,7 @@ class BFITestCase(unittest.TestCase):
     def test_bad_file(self):
 
         with self.assertRaisesRegexp(IOError, 'Permission denied'):
-            index = bfi.BFI('/root/foo.db')
+            index = PlainBFI('/root/foo.db')
 
         with self.assertRaisesRegexp(IOError, 'Not a bloom index'):
-            index = bfi.BFI(__file__)
+            index = PlainBFI(__file__)

@@ -1,9 +1,9 @@
 LIB_DIR = ../src
-TARGETS = _bfi.so
+TARGETS = bfi/_bfi.so
 
 all: ${TARGETS}
 
-_bfi.so: _bfi.c ${LIB_DIR}/libbfi.a
+bfi/_bfi.so: bfi/_bfi.c ${LIB_DIR}/libbfi.a
 	rm -f $@
 	python setup.py build_ext --inplace
 

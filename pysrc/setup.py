@@ -5,10 +5,10 @@ setup(
     description='Bloom Filter Index',
     author='Tris Forster',
     url='https://github.com/tf198/bfi',
-    py_modules=['bfi.py'],
+    packages=['bfi'],
     ext_modules=[Extension(
-        "_bfi",
-        sources=["_bfi.c"],
+        "bfi/_bfi",
+        sources=["bfi/_bfi.c"],
         include_dirs=['../src'],
         library_dirs=['../src'],
         libraries=['bfi']
