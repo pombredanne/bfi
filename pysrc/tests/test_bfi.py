@@ -10,9 +10,9 @@ class BFITestCase(unittest.TestCase):
             os.unlink(self.TEST_FILE)
 
     def load_data(self, count=1500):
-        index = bfi.BloomFilterIndex(self.TEST_FILE)
+        index = bfi.BFI(self.TEST_FILE)
 
-        [ index.append(x, ['FIRST-%d' % x, 'SECOND-%d' % (x % 73)]) for x in range(count) ]
+        [ index.append(['FIRST-%d' % x, 'SECOND-%d' % (x % 73)]) for x in range(count) ]
 
         self.assertEqual(index.sync(), count)
 
@@ -22,9 +22,9 @@ class BFITestCase(unittest.TestCase):
         index = self.load_data()
 
         info = index.stat()
-        self.assertEqual(info['records'], 1500)
+        self.assertEqual(info['slots'], 1500)
         self.assertEqual(info['version'], 3)
-        self.assertEqual(info['pages'], 2)
+        self.assertEqual(info['pages'], 3)
 
     def test_lookup(self):
         index = self.load_data()
@@ -38,46 +38,27 @@ class BFITestCase(unittest.TestCase):
         self.assertEqual(index.lookup(['FIRST-576', 'SECOND-1']), [])
         self.assertEqual(index.lookup(['FIRST-576', 'SECOND-%d' % (576 % 73)]), [576])
 
-    def test_insert(self):
+    def test_update(self):
         index = self.load_data()
 
-        index.insert(576, ['FOO', 'BAR'])
+        index.write(576, ['FOO', 'BAR'])
 
         self.assertEqual(index.lookup(['BAR']), [576])
         self.assertEqual(index.lookup(['FIRST-577']), [577])
 
-    def test_scratch_insert(self):
-        index = bfi.BloomFilterIndex(self.TEST_FILE)
-        index.insert(1, ['FOO:1', 'BAR:2'])
-
-    def test_delete(self):
-        index = self.load_data()
-
-        index.delete(576)
-        self.assertEqual(index.stat()['records'], 1499)
-
-        self.assertEqual(index.lookup(['FIRST-576']), [])
-        self.assertEqual(index.lookup(['FIRST-577']), [577])
-        
-        index.insert(1501, ['FOO', 'BAR'])
-        self.assertEqual(index.stat()['records'], 1500)
-
     def test_bad_input(self):
-        index = bfi.BloomFilterIndex(self.TEST_FILE)
+        index = bfi.BFI(self.TEST_FILE)
 
         with self.assertRaisesRegexp(ValueError, 'Need at least one value to index'):
-            index.append(34, 'Test')
+            index.append('Test')
 
         with self.assertRaisesRegexp(ValueError, 'Need at least one value to lookup'):
             index.lookup('Test')
 
-        with self.assertRaisesRegexp(TypeError, 'an integer is required'):
-            index.append("test", ['foo'])
-
     def test_bad_file(self):
 
         with self.assertRaisesRegexp(IOError, 'Permission denied'):
-            index = bfi.BloomFilterIndex('/root/foo.db')
+            index = bfi.BFI('/root/foo.db')
 
         with self.assertRaisesRegexp(IOError, 'Not a bloom index'):
-            index = bfi.BloomFilterIndex(__file__)
+            index = bfi.BFI(__file__)

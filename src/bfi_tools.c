@@ -32,7 +32,7 @@ int index_stdin(bfi *index, int row) {
             }
         }
 
-        bfi_append(index, pk, values, i);
+        bfi_append(index, values, i);
 
         row++;
     }
@@ -41,52 +41,59 @@ int index_stdin(bfi *index, int row) {
 }
 
 int usage() {
-    fprintf(stderr, "Usage: bfi index <file> <pk> <value> [<value> ...]\n");
-    fprintf(stderr, "       bfi index <file> (read from stdin)\n");
+    fprintf(stderr, "Usage: bfi append <file> <value> [<value> ...]\n");
+    fprintf(stderr, "       bfi append <file> (read from stdin)\n");
     fprintf(stderr, "       bfi lookup <file> <value> [<value> ...]\n");
     return -255;
 }
 
 int main(int argc, char *argv[]) {
-    bfi *index;
-    int pk;
+  bfi *index;
+  int pk;
 
+  if(argc < 3) return usage();
+
+  index = bfi_open(argv[2], BFI_FORMAT_128);
+  if(index == NULL) {
+    fprintf(stderr, "Failed to open file: %s\n", argv[2]);
+    return -42;
+  }
+
+  if(strcmp(argv[1], "append") == 0) {
+
+    if(argc < 4) { // read from stdin
+      printf("Indexed %d items\n", index_stdin(index, 0));
+    } else { // single input
+      sscanf(argv[3], "%d", &pk);
+      bfi_append(index, &argv[3], argc-3);
+    }
+
+  } else if(strcmp(argv[1], "lookup") == 0) {
     if(argc < 3) return usage();
 
-    index = bfi_open(argv[2], BFI_FORMAT_128);
-    if(index == NULL) {
-        fprintf(stderr, "Failed to open file: %s\n", argv[2]);
-        return -42;
-    }
+    uint32_t *result;
+    int c, i;
 
-    if(strcmp(argv[1], "index") == 0) {
-
-        if(argc < 4) { // read from stdin
-            printf("Indexed %d items\n", index_stdin(index, 0));
-        } else { // single input
-            sscanf(argv[3], "%d", &pk);
-            bfi_insert(index, pk, &argv[4], argc-4);
-        }
-
-    } else if(strcmp(argv[1], "lookup") == 0) {
-        if(argc < 3) return usage();
-
-        uint32_t *result;
-        int c, i;
-
-        c = bfi_lookup(index, &argv[3], argc-3, &result);
-        if(c) {
-            for(i=0; i<c; i++) printf("%d\n", result[i]);
-            fprintf(stderr, "%d results found\n", c);
-            free(result);
-        } else {
-            fprintf(stderr, "No results found\n");
-            return 1;
-        }
+    c = bfi_lookup(index, &argv[3], argc-3, &result);
+    if(c) {
+      for(i=0; i<c; i++) printf("%d\n", result[i]);
+      fprintf(stderr, "%d results found\n", c);
+      free(result);
     } else {
-        return usage();
+      fprintf(stderr, "No results found\n");
+      return 1;
     }
 
-    bfi_close(index);
+  } else if(strcmp(argv[1], "info") == 0) {
+    printf("Slots: %d\n", index->slots);
+    printf("Pages: %d\n", index->total_pages);
+    printf("Bloom format: %d\n", index->format);
+    printf("Page size: %d\n", index->page_size);
     return 0;
+  }else {
+    return usage();
+  }
+
+  bfi_close(index);
+  return 0;
 }

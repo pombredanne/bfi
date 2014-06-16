@@ -11,6 +11,12 @@ libbfi.a: bfi.h bfi_v2.o murmur.o
 %.o: %.c
 	gcc -c -fPIC $< -o $@
 
+test: bfi
+	rm -f test.db
+	./bfi append test.db foo bar
+	./bfi append test.db tar nar
+	./bfi lookup test.db tar
+
 clean:
 	rm -f *.o *.a
 	rm -f ${TARGETS}

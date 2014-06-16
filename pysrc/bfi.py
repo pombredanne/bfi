@@ -1,9 +1,9 @@
 """
 OO Wrapper for bfi functions
 
->>> index = BloomFilterIndex('test.bfi')
->>> [ index.add(x, ['FIRST-%d' % x, 'SECOND-%d' % (x % 3)]) for x in range(10) ]
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+>>> index = BFI('test.bfi')
+>>> [ index.append(['FIRST-%d' % x, 'SECOND-%d' % (x % 3)]) for x in range(10) ]
+[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 >>> index.sync()
 10
 >>> index.lookup(['FIRST-4'])
@@ -16,7 +16,7 @@ OO Wrapper for bfi functions
 """
 import _bfi
 
-class BloomFilterIndex(object):
+class BFI(object):
     
     def __init__(self, filename):
         self.filename = filename
@@ -36,21 +36,16 @@ class BloomFilterIndex(object):
         if self._ptr is None: raise RuntimeError("Index is closed")
         return _bfi.bfi_sync(self._ptr)
 	
-    def append(self, pk, values):
+    def append(self, values):
         if self._ptr is None: raise RuntimeError("Index is closed")
-        return _bfi.bfi_append(self._ptr, pk, values)
+        return _bfi.bfi_append(self._ptr, values)
         
-    def insert(self, pk, values):
+    def write(self, offset, values):
         if self._ptr is None: raise RuntimeError("Index is closed")
-        return _bfi.bfi_insert(self._ptr, pk, values)
-        
-    def delete(self, pk):
-        if self._ptr is None: raise RuntimeError("Index is closed")
-        return _bfi.bfi_delete(self._ptr, pk)
-        
+        return _bfi.bfi_write(self._ptr, offset, values)
+    
     def lookup(self, values):
         if self._ptr is None: raise RuntimeError("Index is closed")
-        #print "PYTHON INDEX", self._index
         return _bfi.bfi_lookup(self._ptr, values)
 	
     def stat(self):
@@ -58,7 +53,7 @@ class BloomFilterIndex(object):
         
     def __repr__(self):
         return "<BloomFilterIndex %s>" % self.filename
-        
+
 if __name__ == '__main__':
     import doctest
     print doctest.testmod()

@@ -16,11 +16,9 @@ static char bfi_close_docstring[] =
 static char bfi_sync_docstring[] =
     "Flush changes to disk.";
 static char bfi_append_docstring[] =
-    "Adds entry to the end of index without checking pk.";
-static char bfi_insert_docstring[] =
-    "Updates or appends entry by pk";
-static char bfi_delete_docstring[] =
-    "Remove an entry from the index by pk";
+    "Appends an entry to the end of the index.";
+static char bfi_write_docstring[] =
+    "Write an entry at a specific slot";
 static char bfi_lookup_docstring[] =
     "Retrieve all the possible primary keys for a set of values.";
 static char bfi_stat_docstring[] =
@@ -32,8 +30,7 @@ static PyObject *bfi_bfi_open(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_close(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_sync(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_append(PyObject *self, PyObject *args);
-static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args);
-static PyObject *bfi_bfi_delete(PyObject *self, PyObject *args);
+static PyObject *bfi_bfi_write(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_lookup(PyObject *self, PyObject *args);
 static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args);
 
@@ -42,8 +39,7 @@ static PyMethodDef module_methods[] = {
     {"bfi_close", bfi_bfi_close, METH_VARARGS, bfi_close_docstring},
     {"bfi_sync", bfi_bfi_sync, METH_VARARGS, bfi_sync_docstring},
     {"bfi_append", bfi_bfi_append, METH_VARARGS, bfi_append_docstring},
-    {"bfi_insert", bfi_bfi_insert, METH_VARARGS, bfi_insert_docstring},
-    {"bfi_delete", bfi_bfi_delete, METH_VARARGS, bfi_delete_docstring},
+    {"bfi_write", bfi_bfi_write, METH_VARARGS, bfi_write_docstring},
     {"bfi_lookup", bfi_bfi_lookup, METH_VARARGS, bfi_lookup_docstring},
     {"bfi_stat", bfi_bfi_stat, METH_VARARGS, bfi_stat_docstring},
     {NULL, NULL, 0, NULL}
@@ -120,11 +116,11 @@ void dump_strings(char ** input, int len) {
 static PyObject *bfi_bfi_append(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
-    int pk, c, i;
+    int c, i;
     PyObject *values;
     char ** buf;
 
-    if(!PyArg_ParseTuple(args, "OiO", &cap, &pk, &values)) return NULL;
+    if(!PyArg_ParseTuple(args, "OO", &cap, &values)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
 
     c = PyList_Size(values);
@@ -138,21 +134,21 @@ static PyObject *bfi_bfi_append(PyObject *self, PyObject *args) {
     }
     //dump_strings(buf, c);
 
-    int result = bfi_append(index, pk, buf, c);
+    int result = bfi_append(index, buf, c);
     free(buf);
 
     PyObject *ret = Py_BuildValue("i", result);
     return ret;
 }
 
-static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args) {
+static PyObject *bfi_bfi_write(PyObject *self, PyObject *args) {
     PyObject *cap;
     bfi * index;
-    int pk, c, i;
+    int slot, c, i;
     PyObject *values;
     char ** buf;
 
-    if(!PyArg_ParseTuple(args, "OiO", &cap, &pk, &values)) return NULL;
+    if(!PyArg_ParseTuple(args, "OiO", &cap, &slot, &values)) return NULL;
     if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
 
     c = PyList_Size(values);
@@ -166,22 +162,10 @@ static PyObject *bfi_bfi_insert(PyObject *self, PyObject *args) {
     }
     //dump_strings(buf, c);
 
-    int result = bfi_insert(index, pk, buf, c);
+    int result = bfi_write(index, slot, buf, c);
     free(buf);
 
     PyObject *ret = Py_BuildValue("i", result);
-    return ret;
-}
-
-static PyObject *bfi_bfi_delete(PyObject *self, PyObject *args) {
-    PyObject *cap;
-    bfi * index;
-    int pk;
-
-    if(!PyArg_ParseTuple(args, "Oi", &cap, &pk)) return NULL;
-    if((index = PyCapsule_GetPointer(cap, bfi_cap_ptr)) == NULL) return NULL;
-
-    PyObject *ret = Py_BuildValue("i", bfi_delete(index, pk));
     return ret;
 }
 
@@ -226,11 +210,11 @@ static PyObject *bfi_bfi_stat(PyObject *self, PyObject *args) {
 
     PyObject *ret = Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i,s:i}",
             "version", index->version,
-            "records", index->records - index->deleted,
+	    "slots", index->slots,
             "pages", index->total_pages,
             "records_per_page", BFI_RECORDS_PER_PAGE,
-            "bloom_size", BLOOM_SIZE,
-            "page_size", BFI_PAGE_SIZE,
-            "size", BFI_HEADER + (BFI_PAGE_SIZE * index->total_pages) + 1);
+            "bloom_size", index->format,
+            "page_size", index->page_size,
+            "size", BFI_HEADER + (index->page_size * index->total_pages) + 1);
     return ret;
 }
