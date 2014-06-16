@@ -5,7 +5,7 @@ all: ${TARGETS}
 bfi: bfi_tools.c libbfi.a
 	gcc $< -L. -lbfi -o $@
 
-libbfi.a: bfi.h bfi_v2.o murmur.o
+libbfi.a: bfi.h bfi.o murmur.o
 	ar rcs $@ $^
 
 %.o: %.c
