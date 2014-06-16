@@ -22,9 +22,29 @@ def report(method, time, count=1):
 def create_index(obj, count):
     
     for i in range(count):
-        obj.add(i, ['FOO_%d:This is a test %d' % (x, i) for x in range(FIELDS)])
+        obj.append("PK-%d" % i, ['FOO_%d:This is a test %d' % (x, i) for x in range(FIELDS)])
     
     obj.sync()
+
+class BFIProxy(object):
+
+    def __init__(self, filename):
+        self.bfi = bfi.BFI(filename);
+        self.offsets = {}
+
+    def close(self):
+        self.bfi.close()
+
+    def append(self, pk, items):
+        offset = self.bfi.append(items)
+        self.offsets[offset] = pk
+
+    def sync(self):
+        self.bfi.sync
+
+    def lookup(self, items):
+        result = self.bfi.lookup(items)
+        return [ self.offsets[x] for x in result ]
 
 class SQLiteProxy(object):
     
@@ -36,20 +56,20 @@ class SQLiteProxy(object):
         
         self.cursor = self.conn.cursor()
         
-        query = 'CREATE TABLE data (pk INTEGER PRIMARY KEY, %s)' % ', '.join(['FOO_%d' % x for x in range(FIELDS)])
+        query = 'CREATE TABLE data (pk text PRIMARY KEY, %s)' % ', '.join(['FOO_%d text' % x for x in range(FIELDS)])
         self.cursor.execute(query)
         
         self.insert = 'INSERT INTO data VALUES (?, %s)' % ', '.join(['?'] * FIELDS)
         
-    def add(self, pk, items):
+    def append(self, pk, items):
         
         if not self.in_transaction:
             self.cursor.execute("BEGIN")
             self.in_transaction = True
         
-        values = [ x.split(':')[1] for x in items ]
+        values = [pk] + [ x.split(':')[1] for x in items ]
         
-        self.cursor.execute(self.insert, [pk] + values)
+        self.cursor.execute(self.insert, values)
         
     def sync(self):
         if self.in_transaction:
@@ -92,11 +112,11 @@ class BTreeProxy(object):
         for db in self.dbs.values():
             db.sync()
             
-    def add(self, pk, items):
+    def append(self, pk, items):
         
         for x in items:
             parts = x.split(':')
-            key = "%s%s%s" % (parts[1], RS, struct.pack('I', pk))
+            key = "%s%s%s" % (parts[1], RS, pk)
             self.dbs[parts[0]][key] = None
             
     def lookup(self, items):
@@ -105,13 +125,14 @@ class BTreeProxy(object):
         for filter in items:
             key, value = filter.split(':')
             value += RS
+            c = len(value)
     
             db = self.dbs[key]
     
             matches = set()
             k, _ = db.set_location(value)
             while k.startswith(value):
-                pk, = struct.unpack('I', k[-4:])
+                pk = k[c:]
                 matches.add(pk)
                 k, _ = db.next()
             # print "MATCHES", matches
@@ -178,13 +199,13 @@ def run_benchmarks(cls, filename, fields=10, count=RECORDS):
     report("INDEX", result, 1)
     
     #print obj.lookup(['FOO_6:This is a test %d' % RECORD])
-    assert obj.lookup(['FOO_6:This is a test %d' % RECORD]) == [RECORD]
+    assert obj.lookup(['FOO_6:This is a test %d' % RECORD]) == ["PK-%d" % RECORD]
     result = timeit.timeit(wrapper(obj.lookup, ['FOO_6:This is a test %d' % RECORD]), number=100)
     report("LOOKUP (1)", result, 100)
     query = ['FOO_6:This is a test %d' % RECORD, 
                      'FOO_8:This is a test %d' % RECORD,
                      'FOO_2:This is a test %d' % RECORD]
-    assert obj.lookup(query) == [RECORD]
+    assert obj.lookup(query) == ["PK-%d" % RECORD]
     result = timeit.timeit(wrapper(obj.lookup, query), number=100)
     report("LOOKUP (3)", result, 100)
     
@@ -198,7 +219,7 @@ def run_benchmarks(cls, filename, fields=10, count=RECORDS):
 if __name__ == '__main__':
     
     print "## BFI ##"
-    run_benchmarks(bfi.BloomFilterIndex, 'test.bfi')
+    run_benchmarks(BFIProxy, 'test.bfi')
     print "### SQLite3 ###"
     run_benchmarks(SQLiteProxy, 'test.sq3')
     print '### BTree ###'
